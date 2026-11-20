@@ -2,7 +2,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 ID ?= FX-001
 
-.PHONY: help doctor check verify task pair review dry-run install build test lint web-dev api-run
+.PHONY: help doctor check verify task pair review dry-run install build test lint web-dev api-run infra-up infra-down infra-logs
 help:
 	@printf 'make install                 Install frontend dependencies (npm ci)\n'
 	@printf 'make build                   Build frontend and backend\n'
@@ -10,6 +10,9 @@ help:
 	@printf 'make lint                    Frontend lint + typecheck, backend compile checks\n'
 	@printf 'make web-dev                 Run Next.js dev server (SIMULATION mode)\n'
 	@printf 'make api-run                 Run Spring Boot API (SIMULATION mode)\n'
+	@printf 'make infra-up                Start local PostgreSQL and Redis\n'
+	@printf 'make infra-down              Stop local PostgreSQL and Redis\n'
+	@printf 'make infra-logs              Follow local infrastructure logs\n'
 	@printf 'make doctor                  Check CLI and local prerequisites\n'
 	@printf 'make check                   Run offline harness regression tests\n'
 	@printf 'make task ID=FX-001          Create a new clean Git feature branch\n'
@@ -49,3 +52,11 @@ web-dev:
 	npm --prefix apps/web run dev
 api-run:
 	cd services/api && ./mvnw -B -ntp spring-boot:run
+
+# --- FX-002 local infrastructure ---------------------------------------------
+infra-up:
+	docker compose up -d
+infra-down:
+	docker compose down
+infra-logs:
+	docker compose logs -f postgres redis
