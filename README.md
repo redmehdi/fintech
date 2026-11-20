@@ -23,11 +23,12 @@ A full-stack product blueprint for two features: (1) money transfers and (2) P2P
 - Auth: trusted managed OIDC identity provider, MFA; *no homegrown credential storage*.
 - Payment/FX/KYC: external adapter interfaces, backed by deterministic local sandbox mocks at launch.
 
-## Local development (FX-001 scaffold)
+## Local development
 
-Prerequisites: Java 21, Node.js 24 (`.nvmrc`; `^22.13.0 || ^24.0.0 || >=26.0.0` supported, as required by the locked Vitest/Vite/ESLint toolchain — Node 20 is not supported), npm. Maven is provided via `services/api/mvnw`.
+Prerequisites: Docker Compose, Java 21, Node.js 24 (`.nvmrc`; `^22.13.0 || ^24.0.0 || >=26.0.0` supported, as required by the locked Vitest/Vite/ESLint toolchain — Node 20 is not supported), npm. Maven is provided via `services/api/mvnw`.
 
 ```bash
+make infra-up   # PostgreSQL on 127.0.0.1:5432 and Redis on 127.0.0.1:6379
 make install   # npm ci in apps/web
 make test      # Vitest (web) + JUnit (api)
 make lint      # ESLint + tsc (web), compile with -Werror + enforcer (api)
@@ -35,7 +36,10 @@ make build     # next build + Spring Boot jar
 make verify    # full harness: shell/python checks + web test/lint/typecheck/build + api verify
 make web-dev   # http://localhost:3000
 make api-run   # http://localhost:8080/actuator/health
+make infra-down # stop local services (keeps PostgreSQL volume)
 ```
+
+The API applies `db/migration/V1__core_domain.sql` with Flyway during startup. Local database credentials are synthetic development defaults only. Export `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_PORT` before running Compose and the API to share overrides; `POSTGRES_HOST` defaults to `localhost`. `DATABASE_URL`, `DATABASE_USERNAME`, and `DATABASE_PASSWORD` can override the API connection directly. Test runs use a fresh PostgreSQL Testcontainers instance and do not connect to the shared development database. Redis is local ephemeral infrastructure and is not a source of truth for reservations or financial state.
 
 Both apps run in **`SIMULATION`** mode only. The API binds `fintech.mode` to an enum whose only value is `SIMULATION` and refuses to start if `fintech.mode` is anything else or `fintech.live-enabled=true`. The web app likewise rejects any `NEXT_PUBLIC_OPERATING_MODE` other than `SIMULATION`. There is no configuration switch that enables live money movement.
 

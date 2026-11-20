@@ -1,6 +1,19 @@
 spring:
   application:
     name: eurmad-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:eurmad}}
+    username: ${DATABASE_USERNAME:${POSTGRES_USER:eurmad}}
+    password: ${DATABASE_PASSWORD:${POSTGRES_PASSWORD:simulation_only}}
+    hikari:
+      maximum-pool-size: 5
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 server:
   port: 8080
