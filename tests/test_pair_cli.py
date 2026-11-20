@@ -46,22 +46,38 @@ while (($#)); do
 done
 if [[ "$prompt" == *'Codex reviewed'* ]]; then
   printf 'fixed\\n' > mock-fixed.txt
+elif [[ "$prompt" == *'Independent review task'* ]]; then
+  printf 'MOCK CLAUDE REVIEW: check contract compatibility\\n'
 else
   printf 'implemented\\n' > mock-implemented.txt
 fi
-printf 'FAKE CLAUDE OK\\n'
+printf 'FAKE CLAUDE OK\\n' >&2
 """)
         self.agent("codex", """#!/usr/bin/env bash
 set -euo pipefail
-[[ "${FAIL_REVIEW:-0}" != '1' ]] || exit 15
 file=''
+is_review=0
+is_resume=0
+resume_id="${3:-}"
 while (($#)); do
+  [[ "$1" != 'review' ]] || is_review=1
+  [[ "$1" != 'resume' ]] || is_resume=1
   if [[ "$1" == '-o' ]]; then shift; file="$1"; fi
   shift
 done
-[[ -n "$file" ]] || exit 2
-printf 'FINDING: check tests; mock review\\n' > "$file"
-printf 'FAKE CODEX OK\\n'
+if ((is_review)); then
+  [[ "${FAIL_REVIEW:-0}" != '1' ]] || exit 15
+  [[ -n "$file" ]] || exit 2
+  printf 'FINDING: check tests; mock review\\n' > "$file"
+  printf 'FAKE CODEX REVIEW OK\\n'
+elif ((is_resume)); then
+  [[ "$resume_id" == 'mock-session-001' ]] || exit 16
+  printf 'fixed\\n' > mock-codex-fixed.txt
+  printf 'FAKE CODEX RESUME OK\\n'
+else
+  printf 'implemented\\n' > mock-codex-implemented.txt
+  printf '{"type":"thread.started","thread_id":"mock-session-001"}\\n'
+fi
 """)
 
     def agent(self, name, body):
@@ -69,8 +85,8 @@ printf 'FAKE CODEX OK\\n'
         filename.write_text(body)
         filename.chmod(0o755)
 
-    def task_branch(self):
-        result = run(["bash", "scripts/new-task.sh", "FX-001"], self.repo, self.env)
+    def task_branch(self, ticket="FX-001"):
+        result = run(["bash", "scripts/new-task.sh", ticket], self.repo, self.env)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_dry_run_does_not_execute_agents(self):
@@ -79,6 +95,28 @@ printf 'FAKE CODEX OK\\n'
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("codex exec", result.stdout)
         self.assertFalse((self.repo / "mock-implemented.txt").exists())
+
+    def test_fx003_dry_run_uses_codex_then_claude(self):
+        self.task_branch("FX-003")
+        (self.repo / "existing-work.txt").write_text("dry runs are read-only\n")
+        result = run(["bash", "scripts/pair.sh", "FX-003", "--dry-run"], self.repo, self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertLess(result.stdout.index("Codex: codex exec --json"), result.stdout.index("Reviewer: Claude"))
+        self.assertIn("codex exec resume <session-id>", result.stdout)
+        self.assertFalse((self.repo / "mock-codex-implemented.txt").exists())
+
+    def test_fx003_full_cycle_resumes_codex_after_claude_review(self):
+        self.task_branch("FX-003")
+        result = run(["bash", "scripts/pair.sh", "FX-003"], self.repo, self.env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.repo / "mock-codex-implemented.txt").exists())
+        self.assertTrue((self.repo / "mock-codex-fixed.txt").exists())
+        reports = list((self.repo / ".ai-runs").glob("*FX-003-*/review-1.md"))
+        self.assertEqual(len(reports), 1)
+        self.assertIn("MOCK CLAUDE REVIEW", reports[0].read_text())
+        session_files = list((self.repo / ".ai-runs").glob("*FX-003-*/codex-session-id.txt"))
+        self.assertEqual(len(session_files), 1)
+        self.assertEqual(session_files[0].read_text().strip(), "mock-session-001")
 
     def test_full_cycle_two_reviews_and_no_commit(self):
         self.task_branch()

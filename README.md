@@ -1,4 +1,4 @@
-**Pair-programming CLI:** start with [`QUICKSTART.md`](QUICKSTART.md). The included scripts orchestrate Claude Code implementation and Codex independent review.
+**Pair-programming CLI:** start with [`QUICKSTART.md`](QUICKSTART.md). The scripts follow each backlog ticket's assigned implementer and reviewer; FX-003 uses Codex implementation, Claude review, and Codex session resume for repair.
 
 # EUR–MAD Fintech MVP Blueprint
 

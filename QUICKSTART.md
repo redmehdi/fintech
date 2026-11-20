@@ -40,7 +40,13 @@ bash scripts/pair.sh FX-001
 # Or: make pair ID=FX-001
 ```
 
-This runs (1) Claude implementing the ticket (2) local checks (3) Codex reviewing all uncommitted changes, including untracked files (4) one Claude repair cycle (5) checks and final Codex review. Reports and prompts are in `.ai-runs/` and ignored by Git. Read `review-1.md` before deciding to commit.
+This follows the implementer/reviewer assignment in `docs/BACKLOG.md`. For most tickets it runs Claude implementation → local checks → read-only Codex review → Claude repair → checks and final Codex review. FX-003 uses Codex implementation → local checks → read-only Claude review → Codex resume/repair → checks and final Claude review. Codex resumes the implementation session id captured from its JSONL event stream. Reports, prompts and the Codex session id are in `.ai-runs/` and ignored by Git. Read the final review before deciding to commit.
+
+Preview role selection without launching either agent:
+
+```bash
+bash scripts/pair.sh FX-003 --dry-run
+```
 
 ## Step 4 · After your review
 
@@ -67,7 +73,7 @@ bash scripts/pair.sh FX-001 --skip-implement --fix-rounds 0
 
 ## Customize and debug
 
-- `--fix-rounds 0`: only first Codex review; `--fix-rounds 2`: two bounded fixes and three reviews.
+- `--fix-rounds 0`: only the first assigned review; `--fix-rounds 2`: two bounded fixes and three reviews.
 - `PAIR_CLAUDE_PERMISSION_MODE=auto`: asks Claude's classifier to decide individual operations. Never use `bypassPermissions` for money-related work.
 - `PAIR_CLAUDE_ALLOWED_TOOLS`: override scoped tool allowances carefully. The defaults permit npm and Maven commands, **which can execute third-party scripts**, so use a trusted local workspace.
 - `PAIR_VERIFY_CMD='bash scripts/verify.sh --tooling-only'`: testing override for maintaining the CLI itself (NOT for production acceptance).
@@ -85,8 +91,9 @@ bash scripts/pair.sh FX-001 --skip-implement --fix-rounds 0
 
 ## Documentation
 
-- `.ai/prompts/implement.md`: instruction given to Claude.
-- `.ai/prompts/fix.md`: how Claude consumes review findings.
+- `.ai/prompts/implement.md`: implementation instruction for the assigned agent.
+- `.ai/prompts/fix.md`: how the assigned implementer consumes review findings.
+- `.ai/prompts/review.md`: read-only Claude review instruction for FX-003.
 - `.ai/prompts/review_policy.md`: review focus (also described in AGENTS.md; Codex's built-in review target cannot simultaneously accept an additional freeform prompt).
 - `docs/BACKLOG.md`: tickets FX-001 through FX-020.
 - `tests/test_pair_cli.py`: isolated offline regression tests with stub CLIs.
