@@ -23,7 +23,26 @@ A full-stack product blueprint for two features: (1) money transfers and (2) P2P
 - Auth: trusted managed OIDC identity provider, MFA; *no homegrown credential storage*.
 - Payment/FX/KYC: external adapter interfaces, backed by deterministic local sandbox mocks at launch.
 
+## Local development (FX-001 scaffold)
+
+Prerequisites: Java 21, Node.js 24 (`.nvmrc`; `^22.13.0 || ^24.0.0 || >=26.0.0` supported, as required by the locked Vitest/Vite/ESLint toolchain — Node 20 is not supported), npm. Maven is provided via `services/api/mvnw`.
+
+```bash
+make install   # npm ci in apps/web
+make test      # Vitest (web) + JUnit (api)
+make lint      # ESLint + tsc (web), compile with -Werror + enforcer (api)
+make build     # next build + Spring Boot jar
+make verify    # full harness: shell/python checks + web test/lint/typecheck/build + api verify
+make web-dev   # http://localhost:3000
+make api-run   # http://localhost:8080/actuator/health
+```
+
+Both apps run in **`SIMULATION`** mode only. The API binds `fintech.mode` to an enum whose only value is `SIMULATION` and refuses to start if `fintech.mode` is anything else or `fintech.live-enabled=true`. The web app likewise rejects any `NEXT_PUBLIC_OPERATING_MODE` other than `SIMULATION`. There is no configuration switch that enables live money movement.
+
 ## Layout
+
+- `apps/web` – Next.js (App Router, TypeScript) frontend.
+- `services/api` – Spring Boot (Java 21) modular-monolith API.
 
 - `docs/PRD.md` – product scope, personas, user journeys, requirements, UX states, acceptance criteria.
 - `docs/ARCHITECTURE.md` – modules, flows, state machines, invariants, APIs, NFRs.

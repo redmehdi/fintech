@@ -11,6 +11,15 @@ venv/
 node_modules/
 .next/
 out/
+next-env.d.ts
+*.tsbuildinfo
+coverage/
+npm-debug.log*
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
 
 # Java / Gradle
 target/
