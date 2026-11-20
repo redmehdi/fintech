@@ -1,0 +1,1850 @@
+openapi: 3.0.3
+info:
+  title: EUR-MAD Transfer and P2P Exchange API
+  version: 0.1.0
+  description: Simulation-only contract. All real payment/FX settlement is disabled pending legal clearance and
+    licensed partner capability.
+servers:
+- url: http://localhost:8080
+  description: Local sandbox only
+security:
+- bearerAuth: []
+tags:
+- name: Identity
+- name: KYC
+- name: Beneficiaries
+- name: Quotes
+- name: Transfers
+- name: Marketplace
+- name: Operations
+- name: Sandbox Webhooks
+paths:
+  /v1/me:
+    get:
+      tags:
+      - Identity
+      operationId: getCurrentCustomer
+      summary: Get current customer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/kyc/status:
+    get:
+      tags:
+      - KYC
+      operationId: getKycStatus
+      summary: Read current KYC status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycStatus'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/kyc/sessions:
+    post:
+      tags:
+      - KYC
+      operationId: createKycSession
+      summary: Create a synthetic sandbox verification session
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycSession'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/beneficiaries:
+    get:
+      tags:
+      - Beneficiaries
+      operationId: listBeneficiaries
+      summary: List current user beneficiaries
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Beneficiary'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags:
+      - Beneficiaries
+      operationId: createBeneficiary
+      summary: Create beneficiary from tokenized destination
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BeneficiaryCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Beneficiary'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+  /v1/quotes:
+    post:
+      tags:
+      - Quotes
+      operationId: createQuote
+      summary: Issue an expiring indicative simulated FX quote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+  /v1/transfers:
+    get:
+      tags:
+      - Transfers
+      operationId: listTransfers
+      summary: List own transfer history
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transfer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags:
+      - Transfers
+      operationId: createTransfer
+      summary: Create transfer with an unused owned quote; simulation only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+  /v1/transfers/{transferId}:
+    get:
+      tags:
+      - Transfers
+      operationId: getTransfer
+      summary: Get own transfer state
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: transferId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /v1/transfers/{transferId}/cancel:
+    post:
+      tags:
+      - Transfers
+      operationId: requestTransferCancel
+      summary: Request cancellation; may require refund if already funded
+      parameters:
+      - name: transferId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+      responses:
+        '200':
+          description: Current transfer state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/offers:
+    get:
+      tags:
+      - Marketplace
+      operationId: listOffers
+      summary: List publicly discoverable offers; no personal account information
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Offer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: sourceCurrency
+        in: query
+        schema:
+          type: string
+          enum:
+          - EUR
+          - MAD
+      - name: targetCurrency
+        in: query
+        schema:
+          type: string
+          enum:
+          - EUR
+          - MAD
+    post:
+      tags:
+      - Marketplace
+      operationId: createOffer
+      summary: Create a simulated P2P FX offer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+  /v1/offers/{offerId}:
+    get:
+      tags:
+      - Marketplace
+      operationId: getOffer
+      summary: Get safe offer details
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: offerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /v1/offers/{offerId}/cancel:
+    post:
+      tags:
+      - Marketplace
+      operationId: cancelOffer
+      summary: Cancel own offer if no active reservation
+      parameters:
+      - name: offerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/matches:
+    get:
+      tags:
+      - Marketplace
+      operationId: listMyMatches
+      summary: List matches involving own offers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Match'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/matches/{matchId}:
+    get:
+      tags:
+      - Marketplace
+      operationId: getMyMatch
+      summary: Read a match involving own offer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: matchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /v1/matches/{matchId}/accept:
+    post:
+      tags:
+      - Marketplace
+      operationId: acceptMatch
+      summary: Accept bilateral proposal; never moves customer money
+      parameters:
+      - name: matchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/matches/{matchId}/decline:
+    post:
+      tags:
+      - Marketplace
+      operationId: declineMatch
+      summary: Decline proposal and release reservation
+      parameters:
+      - name: matchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/admin/reviews:
+    get:
+      tags:
+      - Operations
+      operationId: listComplianceReviews
+      summary: List review queue; COMPLIANCE role
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /v1/admin/reviews/{reviewId}/decision:
+    post:
+      tags:
+      - Operations
+      operationId: decideReview
+      summary: Record reasoned compliance review decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewDecision'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: State or idempotency conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Eligibility or business-rule failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Unique key per actor+operation; replay with different body returns 409
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+  /v1/webhooks/simulator:
+    post:
+      tags:
+      - Sandbox Webhooks
+      operationId: receiveSimulatorEvent
+      summary: Receive mock partner callback; signed and replay-protected
+      description: Use signature over original raw request body and timestamp. No customer JWT. Only enabled in
+        trusted simulator environment. Body schema is provider-specific and should be authenticated before parsing.
+      security: []
+      parameters:
+      - name: X-Webhook-Signature
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: X-Webhook-Timestamp
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '202':
+          description: Accepted for processing
+        '400':
+          description: Invalid payload
+        '401':
+          description: Signature or timestamp invalid
+        '409':
+          description: Conflicting event ID
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: OIDC access token with required scope, issuer, audience
+  schemas:
+    Problem:
+      type: object
+      required:
+      - code
+      - message
+      - correlationId
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        correlationId:
+          type: string
+          format: uuid
+        details:
+          type: object
+          additionalProperties: true
+    Customer:
+      type: object
+      required:
+      - id
+      - residencyCountry
+      - kycStatus
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        residencyCountry:
+          type: string
+          enum:
+          - ES
+          - MA
+        kycStatus:
+          type: string
+          enum:
+          - NOT_STARTED
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - EXPIRED
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - SUSPENDED
+          - CLOSED
+    KycStatus:
+      type: object
+      required:
+      - status
+      - mode
+      properties:
+        status:
+          type: string
+          enum:
+          - NOT_STARTED
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - EXPIRED
+        mode:
+          type: string
+          enum:
+          - SIMULATION
+    KycSession:
+      type: object
+      required:
+      - id
+      - status
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - EXPIRED
+        mode:
+          type: string
+          enum:
+          - SIMULATION
+        mockVerificationUrl:
+          type: string
+          format: uri
+          description: Only available when local sandbox is enabled
+    BeneficiaryCreate:
+      type: object
+      required:
+      - displayName
+      - country
+      - payoutMethod
+      - destinationTokenRef
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        country:
+          type: string
+          enum:
+          - ES
+          - MA
+        payoutMethod:
+          type: string
+          enum:
+          - BANK_ACCOUNT
+          - PARTNER_CASH_PICKUP
+        destinationTokenRef:
+          type: string
+          description: Opaque destination token created by trusted sandbox or future regulated PSP; never raw account
+            credentials
+          minLength: 1
+    Beneficiary:
+      type: object
+      required:
+      - id
+      - displayName
+      - country
+      - payoutMethod
+      - maskedDestination
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        country:
+          type: string
+          enum:
+          - ES
+          - MA
+        payoutMethod:
+          type: string
+          enum:
+          - BANK_ACCOUNT
+          - PARTNER_CASH_PICKUP
+        maskedDestination:
+          type: string
+    TransferPurpose:
+      type: string
+      enum:
+      - FAMILY_SUPPORT
+      - PERSONAL_TRANSFER
+      - EDUCATION
+      - OTHER_REVIEW
+    QuoteRequest:
+      type: object
+      required:
+      - sourceCurrency
+      - targetCurrency
+      - sourceAmountMinor
+      - purpose
+      properties:
+        sourceCurrency:
+          type: string
+          enum:
+          - EUR
+          - MAD
+        targetCurrency:
+          type: string
+          enum:
+          - EUR
+          - MAD
+        sourceAmountMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        purpose:
+          $ref: '#/components/schemas/TransferPurpose'
+    Quote:
+      type: object
+      required:
+      - id
+      - sourceCurrency
+      - targetCurrency
+      - sourceAmountMinor
+      - targetAmountMinor
+      - feeSourceMinor
+      - totalDebitMinor
+      - rate
+      - rateSource
+      - expiresAt
+      - mode
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        sourceCurrency:
+          type: string
+          enum:
+          - EUR
+          - MAD
+        targetCurrency:
+          type: string
+          enum:
+          - EUR
+          - MAD
+        sourceAmountMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        targetAmountMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        feeSourceMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        totalDebitMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        rate:
+          type: string
+          description: Decimal string; target currency per one source currency
+          pattern: ^[0-9]+(\.[0-9]{1,12})?$
+        rateSource:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          enum:
+          - SIMULATION
+        status:
+          type: string
+          enum:
+          - ISSUED
+          - CONSUMED
+          - EXPIRED
+    TransferCreate:
+      type: object
+      required:
+      - quoteId
+      - beneficiaryId
+      - purpose
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+        beneficiaryId:
+          type: string
+          format: uuid
+        purpose:
+          $ref: '#/components/schemas/TransferPurpose'
+    Transfer:
+      type: object
+      required:
+      - id
+      - quoteId
+      - beneficiaryId
+      - purpose
+      - status
+      - mode
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        quoteId:
+          type: string
+          format: uuid
+        beneficiaryId:
+          type: string
+          format: uuid
+        purpose:
+          $ref: '#/components/schemas/TransferPurpose'
+        status:
+          type: string
+          enum:
+          - CREATED
+          - AWAITING_KYC
+          - AWAITING_FUNDING
+          - FUNDING_CONFIRMED
+          - PROCESSING
+          - REVIEW_REQUIRED
+          - COMPLETED
+          - REJECTED
+          - CANCELLED
+          - FAILED
+          - REFUND_PENDING
+          - REFUNDED
+        mode:
+          type: string
+          enum:
+          - SIMULATION
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OfferCreate:
+      type: object
+      required:
+      - sourceCurrency
+      - targetCurrency
+      - sourceTotalMinor
+      - limitRate
+      - expiresAt
+      properties:
+        sourceCurrency:
+          type: string
+          enum:
+          - EUR
+          - MAD
+        targetCurrency:
+          type: string
+          enum:
+          - EUR
+          - MAD
+        sourceTotalMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        limitRate:
+          type: string
+          description: Decimal string; target currency per one source currency
+          pattern: ^[0-9]+(\.[0-9]{1,12})?$
+        expiresAt:
+          type: string
+          format: date-time
+    Offer:
+      type: object
+      required:
+      - id
+      - sourceCurrency
+      - targetCurrency
+      - sourceTotalMinor
+      - sourceReservedMinor
+      - sourceFilledMinor
+      - limitRate
+      - status
+      - expiresAt
+      - isOwnOffer
+      properties:
+        id:
+          type: string
+          format: uuid
+        sourceCurrency:
+          type: string
+          enum:
+          - EUR
+          - MAD
+        targetCurrency:
+          type: string
+          enum:
+          - EUR
+          - MAD
+        sourceTotalMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        sourceReservedMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        sourceFilledMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        limitRate:
+          type: string
+          description: Decimal string; target currency per one source currency
+          pattern: ^[0-9]+(\.[0-9]{1,12})?$
+        status:
+          type: string
+          enum:
+          - OPEN
+          - RESERVED
+          - MATCHED
+          - CANCELLED
+          - EXPIRED
+        expiresAt:
+          type: string
+          format: date-time
+        isOwnOffer:
+          type: boolean
+    Match:
+      type: object
+      required:
+      - id
+      - offerAId
+      - offerBId
+      - sourceAReservedMinor
+      - sourceBReservedMinor
+      - canonicalMadPerEurRate
+      - status
+      - acceptedByMe
+      - expiresAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        offerAId:
+          type: string
+          format: uuid
+        offerBId:
+          type: string
+          format: uuid
+        sourceAReservedMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        sourceBReservedMinor:
+          type: string
+          description: Positive non-negative decimal integer in currency minor units; string prevents JSON precision
+            loss
+          pattern: ^[0-9]+$
+        canonicalMadPerEurRate:
+          type: string
+          description: Decimal string; target currency per one source currency
+          pattern: ^[0-9]+(\.[0-9]{1,12})?$
+        status:
+          type: string
+          enum:
+          - PROPOSED
+          - AGREED_SIMULATION_ONLY
+          - DECLINED
+          - EXPIRED
+        acceptedByMe:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+    Review:
+      type: object
+      required:
+      - id
+      - resourceType
+      - resourceId
+      - reasonCode
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+          enum:
+          - TRANSFER
+          - KYC_CASE
+          - FX_MATCH
+        resourceId:
+          type: string
+          format: uuid
+        reasonCode:
+          type: string
+        status:
+          type: string
+          enum:
+          - OPEN
+          - APPROVED
+          - REJECTED
+    ReviewDecision:
+      type: object
+      required:
+      - decision
+      - reasonCode
+      properties:
+        decision:
+          type: string
+          enum:
+          - APPROVE
+          - REJECT
+        reasonCode:
+          type: string
+          minLength: 3
+          maxLength: 100
+        comment:
+          type: string
+          maxLength: 1000
+    StatusAck:
+      type: object
+      required:
+      - id
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
