@@ -1,0 +1,28 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+  color: #1a1a1a;
+  background: #ffffff;
+}
+
+.simulation-banner {
+  padding: 0.5rem 1rem;
+  text-align: center;
+  font-weight: 600;
+  background: #fff4cc;
+  color: #5c4400;
+  border-block-end: 1px solid #e0c96b;
+}
+
+.container {
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: 2rem 1rem;
+}

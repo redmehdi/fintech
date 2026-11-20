@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: eurmad-api
+
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+
+# Product safety boundary. SIMULATION is the only supported mode; any other value or
+# live-enabled=true aborts startup (see FintechProperties).
+fintech:
+  mode: SIMULATION
+  live-enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
