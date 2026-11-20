@@ -1,0 +1,23 @@
+# Pair-programming run artifacts can contain prompts, code and diagnostics.
+.ai-runs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+
+# Java / Gradle
+target/
+build/
+.gradle/
+
+# Local environment and secrets (keep synthetic examples trackable).
+.env
+.env.*
+!.env.example
