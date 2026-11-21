@@ -44,6 +44,14 @@ The default loop runs Claude implementation and repair with read-only Codex revi
 
 The run directory under `.ai-runs/` contains the reports, prompts, and `codex-session-id.txt`. Read the final review before deciding to commit.
 
+The ticket chooses default roles. For a frontend ticket, either agent can implement while the other reviews; for example:
+
+```bash
+bash scripts/pair.sh FX-010 --implementer codex --reviewer claude
+```
+
+Role overrides do not change the ticket's scope, and the implementer and reviewer must be different agents. The full verification harness already runs web tests, lint, type-check, and production build when the frontend is scaffolded.
+
 Preview role selection without launching either agent:
 
 ```bash

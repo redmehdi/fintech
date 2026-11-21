@@ -54,6 +54,15 @@ class QuoteRepository {
                 .findFirst();
     }
 
+    /**
+     * ISSUED -> CONSUMED for an owned quote; returns the number of rows changed (0 or 1). The
+     * {@code fx_quotes_immutable} trigger rejects the change once the quote's expiry has passed.
+     */
+    int markConsumed(UUID customerId, UUID quoteId) {
+        return jdbc.update("UPDATE fx_quotes SET status = 'CONSUMED' WHERE id = ? AND customer_id = ? AND status = 'ISSUED'",
+                quoteId, customerId);
+    }
+
     private static QuoteRecord map(ResultSet rs, int row) throws SQLException {
         return new QuoteRecord(
                 rs.getObject("id", UUID.class),

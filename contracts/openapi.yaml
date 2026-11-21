@@ -591,6 +591,9 @@ paths:
       - Transfers
       operationId: listTransfers
       summary: List own transfer history
+      description: Returns only the caller's own transfers, newest first, each in its current
+        state. Available to any provisioned customer, including one whose account or KYC is no
+        longer eligible to create transfers.
       responses:
         '200':
           description: OK
@@ -649,6 +652,24 @@ paths:
       - Transfers
       operationId: createTransfer
       summary: Create transfer with an unused owned quote; simulation only
+      description: Creates a simulation-only transfer owned by the caller. No funds are held,
+        moved or exchanged and no provider instruction is sent. Requires an `ACTIVE` account with
+        KYC `APPROVED` (`422` otherwise). The quote must be the caller's own, unexpired and not yet
+        consumed; it is consumed by this request and can back at most one transfer. An unknown or
+        foreign quote or beneficiary, or a deleted beneficiary, returns `404`; an already consumed
+        quote returns `409`; an expired quote returns `422`. The beneficiary must be in the payout
+        country of the quote's target currency (`MAD` → `MA`, `EUR` → `ES`), otherwise `422`.
+        The transfer is returned in `AWAITING_FUNDING` and then advances only along the documented
+        state machine in response to simulated provider events. Malformed or non-canonical UUIDs,
+        a `purpose` outside the enum, any field that is not a JSON string, a non-JSON body, or a
+        missing or malformed `Idempotency-Key` return `400`. Replaying the same key with an
+        identical request returns the originally created transfer in its current state (also
+        after its quote has expired, its beneficiary was deleted, or the account or KYC is no
+        longer eligible); the same key with a different request returns `409`. Eligibility (`422`)
+        applies only to a request that would create a new transfer. If a concurrent request from
+        the same customer, or a concurrent change to the quote or beneficiary, holds a required
+        lock for longer than a short timeout, nothing is written and `503` with `Retry-After` is
+        returned; retrying with the same `Idempotency-Key` is safe.
       requestBody:
         required: true
         content:
@@ -658,6 +679,13 @@ paths:
       responses:
         '201':
           description: Created
+          headers:
+            X-Correlation-Id:
+              description: Server-generated request identifier, recorded in the lifecycle and audit
+                events when this request created the transfer.
+              schema:
+                type: string
+                format: uuid
           content:
             application/json:
               schema:
@@ -706,21 +734,38 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: Temporarily unable to process because of a concurrent request from the same
+            customer or a concurrent change to the quote or beneficiary; nothing was written. Retry
+            with the same `Idempotency-Key`.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
       parameters:
       - name: Idempotency-Key
         in: header
         required: true
-        description: Unique key per actor+operation; replay with different body returns 409
+        description: Unique key per actor+operation; replay with different body returns 409.
+          Printable US-ASCII without spaces.
         schema:
           type: string
           minLength: 8
           maxLength: 128
+          pattern: ^[\x21-\x7E]{8,128}$
   /v1/transfers/{transferId}:
     get:
       tags:
       - Transfers
       operationId: getTransfer
       summary: Get own transfer state
+      description: A transfer owned by another customer and an unknown ID return the same `404`.
       responses:
         '200':
           description: OK
@@ -1904,6 +1949,9 @@ components:
           $ref: '#/components/schemas/TransferPurpose'
         status:
           type: string
+          description: Workflow state, never a balance. Changes only along the documented state
+            machine; `COMPLETED`, `REJECTED`, `CANCELLED` and `REFUNDED` are terminal, and `FAILED`
+            can only move to `REFUND_PENDING`. In SIMULATION mode no state means money was moved.
           enum:
           - CREATED
           - AWAITING_KYC

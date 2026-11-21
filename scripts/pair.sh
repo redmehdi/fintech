@@ -2,9 +2,11 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 usage(){ cat <<'EOF'
-Usage: scripts/pair.sh FX-### [--dry-run] [--skip-implement] [--fix-rounds 0|1|2] [--new-session]
+Usage: scripts/pair.sh FX-### [--implementer claude|codex] [--reviewer claude|codex]
+                           [--dry-run] [--skip-implement] [--fix-rounds 0|1|2] [--new-session]
   Default: Claude implements and repairs, Codex reviews in one session.
   FX-003: Codex implement -> verify -> Claude review -> Codex resume/fix -> verify -> Claude final review.
+  --implementer / --reviewer: override the ticket's default roles (must be different agents).
   --skip-implement: review existing changes and resume the saved Codex review session for this ticket and branch
   --new-session: start a fresh Codex review session with --skip-implement
   --fix-rounds 0: review-only after implementation, no repair or final review
@@ -24,11 +26,18 @@ while (($#)); do
  --dry-run) dry_run=1 ;;
  --skip-implement) skip_implement=1 ;;
  --new-session) new_session=1 ;;
+ --implementer) shift; [[ $# -gt 0 ]] || die 'Missing value for --implementer'; implementer="$1" ;;
+ --reviewer) shift; [[ $# -gt 0 ]] || die 'Missing value for --reviewer'; reviewer="$1" ;;
  --fix-rounds) shift; [[ $# -gt 0 ]] || die 'Missing value for --fix-rounds'; fix_rounds="$1" ;;
  -h|--help) usage; exit 0 ;;
  *) die "Unknown option: $1" ;;
  esac; shift
 done
+[[ "$implementer" == claude || "$implementer" == codex ]] || die '--implementer must be claude or codex'
+[[ "$reviewer" == claude || "$reviewer" == codex ]] || die '--reviewer must be claude or codex'
+[[ "$implementer" != "$reviewer" ]] || die 'Implementer and reviewer must be different agents'
+implementer_label="${implementer^}"
+reviewer_label="${reviewer^}"
 [[ "$fix_rounds" =~ ^[012]$ ]] || die '--fix-rounds must be 0, 1 or 2'
 if [[ "$new_session" == 1 && ( "$skip_implement" != 1 || "$reviewer" != codex ) ]]; then
  die '--new-session requires --skip-implement and a Codex review'
@@ -44,6 +53,7 @@ assert_revision_unchanged(){
 if [[ "$dry_run" == 1 ]]; then
  cat <<EOF
 DRY RUN for $ticket
+  Roles: $implementer_label implements/repairs; $reviewer_label reviews
 EOF
  if [[ "$skip_implement" == 1 ]]; then
   printf '  Review existing uncommitted changes\n'

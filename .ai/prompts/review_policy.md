@@ -11,5 +11,6 @@ Prioritize findings by severity and include file and line evidence. Check especi
 - Duplicate money movement, invalid state transitions, unverified completion, or missing audit events.
 - Leaky logs, secrets, sensitive data exposure, and missing negative/security tests.
 - API/schema compatibility, migration safety, failure handling, and material gaps in ticket acceptance criteria.
+- Frontend: generated-client use, server-enforced authorization assumptions, safe handling of tokens and problem responses, money formatting without floating-point arithmetic, accessible keyboard/status behavior, responsive and RTL layouts when required, and missing loading/empty/error/ineligible states.
 
 For each finding, state severity, impact, and the smallest concrete correction. Separate confirmed defects from questions or follow-up suggestions. If no findings are present, say so and list meaningful residual risks; a successful review command is not itself approval.
