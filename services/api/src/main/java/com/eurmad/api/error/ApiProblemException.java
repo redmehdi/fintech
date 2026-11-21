@@ -37,6 +37,11 @@ public final class ApiProblemException extends RuntimeException {
         return new ApiProblemException(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
+    /** Transient contention (e.g. a lock wait timed out); nothing was changed and a retry may succeed. */
+    public static ApiProblemException serviceUnavailable() {
+        return new ApiProblemException(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
     public HttpStatus status() {
         return status;
     }
