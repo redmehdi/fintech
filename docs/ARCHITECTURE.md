@@ -127,3 +127,9 @@ stateDiagram-v2
 - ADR-003: authorized partner manages all money movement; separate flow-specific gate per country/direction.
 - ADR-004: canonical FX rate and integer currency minor units.
 - ADR-005: P2P matches are offers of intent, not implicit transfers.
+
+### ADR-006 — Generate the client and check contract compatibility in CI
+
+Use the OpenAPI document as the source for the TypeScript fetch client. A pinned generator validates the document and rebuilds the client from scratch so frontend checks compile against the proposed contract. CI compares the proposal against the target revision and fails on potential or definite breaking changes.
+
+Reuse the existing `Problem` response for simulated webhook errors and unexpected server errors. The server uses fixed client-safe messages and generates a correlation ID for each error. The error response additions require no database migration.

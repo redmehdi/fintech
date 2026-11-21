@@ -19,6 +19,10 @@ fi
 if [[ -e apps/web/package.json ]]; then
  command -v npm >/dev/null || die 'npm not installed'
  [[ -d apps/web/node_modules ]] || die 'Frontend dependencies missing: run (cd apps/web && npm ci) or npm install for the initial lockfile'
+ if [[ -f contracts/pom.xml ]]; then
+  note 'Validating OpenAPI and generating the TypeScript client'
+  make contract-generate
+ fi
  note 'Frontend checks: test if present, lint, typecheck, build'
  npm --prefix apps/web run test --if-present
  npm --prefix apps/web run lint --if-present

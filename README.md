@@ -1,4 +1,4 @@
-**Pair-programming CLI:** start with [`QUICKSTART.md`](QUICKSTART.md). The included scripts orchestrate Claude Code implementation and Codex independent review.
+**Pair-programming CLI:** start with [`QUICKSTART.md`](QUICKSTART.md). The scripts follow each backlog ticket's assigned implementer and reviewer; FX-003 uses Codex implementation, Claude review, and Codex session resume for repair.
 
 # EUR–MAD Fintech MVP Blueprint
 
@@ -30,6 +30,7 @@ Prerequisites: Docker Compose, Java 21, Node.js 24 (`.nvmrc`; `^22.13.0 || ^24.0
 ```bash
 make infra-up   # PostgreSQL on 127.0.0.1:5432 and Redis on 127.0.0.1:6379
 make install   # npm ci in apps/web
+make contract-generate # validate OpenAPI and generate the TypeScript fetch client
 make test      # Vitest (web) + JUnit (api)
 make lint      # ESLint + tsc (web), compile with -Werror + enforcer (api)
 make build     # next build + Spring Boot jar
@@ -43,6 +44,14 @@ The API applies `db/migration/V1__core_domain.sql` with Flyway during startup. L
 
 Both apps run in **`SIMULATION`** mode only. The API binds `fintech.mode` to an enum whose only value is `SIMULATION` and refuses to start if `fintech.mode` is anything else or `fintech.live-enabled=true`. The web app likewise rejects any `NEXT_PUBLIC_OPERATING_MODE` other than `SIMULATION`. There is no configuration switch that enables live money movement.
 
+### API contract checks
+
+Edit `contracts/openapi.yaml` first. `make contract-generate` validates the spec and regenerates the TypeScript fetch client under `apps/web/src/lib/api/generated/` using the version pinned in `contracts/pom.xml`. The generated directory is ignored by Git. The root build, lint, test, web-dev and verify commands generate the client. Run `make contract-generate` before invoking the web npm scripts directly.
+
+CI compares the contract in the proposed merge against the pull request base, or against the previous branch tip on pushes to `main`. On a new branch it uses the parent commit when that commit has a contract. The workflow verifies the oasdiff release checksum, then checks that removing an operation fails the compatibility gate and a TypeScript error fails `make verify`. It also fails on build and test failures or high- or critical-severity security findings.
+
+Spring error responses use `application/problem+json` with `code`, `message`, and a server-generated UUID in both `correlationId` and the `X-Correlation-Id` header. The TypeScript client exposes the HTTP response on `ResponseError` and exports the generated `Problem` model.
+
 ## Layout
 
 - `apps/web` – Next.js (App Router, TypeScript) frontend.
@@ -53,7 +62,7 @@ Both apps run in **`SIMULATION`** mode only. The API binds `fintech.mode` to an 
 - `docs/DATA_MODEL.md` – entities, constraints, indexes and data lifecycle.
 - `docs/SECURITY_COMPLIANCE.md` – regulatory dependencies, threat model and release gates.
 - `docs/BACKLOG.md` – dependency-ordered implementation tickets with acceptance criteria and agent ownership.
-- `contracts/openapi.yaml` – initial OpenAPI 3.1 specification with representative endpoints and schemas.
+- `contracts/openapi.yaml` – OpenAPI 3.0 specification with representative endpoints and schemas.
 - `db/migration/V1__core_domain.sql` – reference PostgreSQL schema for review; not certified for production.
 - `AGENTS.md` and `CLAUDE.md` – shared coding-agent instructions.
 

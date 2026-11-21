@@ -12,9 +12,10 @@ assert_feature_branch(){
  [[ "$branch" == feature/* ]] || die "Expected feature/* branch, found: ${branch:-detached HEAD}. Use scripts/new-task.sh FX-001"
 }
 render_prompt(){
- local template="$1" ticket="$2" review_path="${3:-}" body
+ local template="$1" ticket="$2" review_path="${3:-}" reviewer="${4:-}" body
  body="$(cat "$template")"
  body="${body//\{\{TICKET_ID\}\}/$ticket}"
  body="${body//\{\{REVIEW_PATH\}\}/$review_path}"
+ body="${body//\{\{REVIEWER\}\}/$reviewer}"
  printf '%s\n' "$body"
 }
