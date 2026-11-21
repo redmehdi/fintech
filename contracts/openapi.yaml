@@ -210,6 +210,8 @@ paths:
       - Beneficiaries
       operationId: listBeneficiaries
       summary: List current user beneficiaries
+      description: Returns only the caller's own beneficiaries that have not been deleted, oldest
+        first. Destination tokens are never returned; only `maskedDestination` is exposed.
       responses:
         '200':
           description: OK
@@ -268,6 +270,17 @@ paths:
       - Beneficiaries
       operationId: createBeneficiary
       summary: Create beneficiary from tokenized destination
+      description: Creates a beneficiary owned by the caller. Requires an `ACTIVE` account (`422`
+        otherwise). Malformed fields, a `country` or `payoutMethod` outside the enums, or a missing
+        or malformed `Idempotency-Key` return `400`; so do a non-JSON body and any field that is
+        not a JSON string (numbers and booleans are not coerced). In SIMULATION mode only
+        destination tokens issued by the sandbox registry for the requested `country` and
+        `payoutMethod` are accepted; any other token returns `422`. Replaying the same key with an
+        identical request returns the originally created beneficiary; the same key with a
+        different request, or after that beneficiary was deleted, returns `409`. If a concurrent
+        request from the same customer holds the creation lock for longer than a short timeout,
+        nothing is written and `503` with `Retry-After` is returned; retrying with the same
+        `Idempotency-Key` is safe.
       requestBody:
         required: true
         content:
@@ -277,6 +290,13 @@ paths:
       responses:
         '201':
           description: Created
+          headers:
+            X-Correlation-Id:
+              description: Server-generated request identifier, recorded in the audit event when this
+                request created the beneficiary.
+              schema:
+                type: string
+                format: uuid
           content:
             application/json:
               schema:
@@ -325,6 +345,19 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: Temporarily unable to process because of concurrent requests from the same
+            customer; nothing was written. Retry with the same `Idempotency-Key`.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
       parameters:
       - name: Idempotency-Key
         in: header
@@ -334,6 +367,110 @@ paths:
           type: string
           minLength: 8
           maxLength: 128
+  /v1/beneficiaries/{beneficiaryId}:
+    parameters:
+    - name: beneficiaryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      tags:
+      - Beneficiaries
+      operationId: getBeneficiary
+      summary: Read one of the caller's beneficiaries
+      description: A beneficiary owned by another customer, a deleted beneficiary and an unknown ID
+        all return the same `404`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Beneficiary'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags:
+      - Beneficiaries
+      operationId: deleteBeneficiary
+      summary: Delete one of the caller's beneficiaries
+      description: Soft-deletes the beneficiary. It is then unavailable to every read and can no
+        longer be referenced by new operations; the record is retained for audit and historical
+        traceability. Deleting a beneficiary owned by another customer, an already deleted one or
+        an unknown ID returns the same `404`.
+      responses:
+        '204':
+          description: Deleted
+          headers:
+            X-Correlation-Id:
+              description: Server-generated request identifier, also recorded in the audit event.
+              schema:
+                type: string
+                format: uuid
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/quotes:
     post:
       tags:
@@ -1529,6 +1666,8 @@ components:
       properties:
         displayName:
           type: string
+          description: Leading and trailing whitespace is removed; the result must be non-blank and
+            free of control characters. Length is counted in Unicode code points.
           minLength: 1
           maxLength: 120
         country:
@@ -1544,7 +1683,15 @@ components:
         destinationTokenRef:
           type: string
           description: Opaque destination token created by trusted sandbox or future regulated PSP; never raw account
-            credentials
+            credentials. In SIMULATION mode only tokens issued by the sandbox registry are accepted,
+            and only for the `country` and `payoutMethod` they were issued for; a value that merely
+            looks like a sandbox token returns `422`. Sandbox tokens are synthetic and resolve to no
+            real destination. ES/BANK_ACCOUNT (`sim-token:es-bank-esb1`, `sim-token:es-bank-esb2`,
+            `sim-token:es-bank-esb3`); ES/PARTNER_CASH_PICKUP (`sim-token:es-cash-esc1`,
+            `sim-token:es-cash-esc2`); MA/BANK_ACCOUNT (`sim-token:ma-bank-mab1`,
+            `sim-token:ma-bank-mab2`, `sim-token:ma-bank-mab3`); MA/PARTNER_CASH_PICKUP
+            (`sim-token:ma-cash-mac1`, `sim-token:ma-cash-mac2`). The token is stored but never
+            returned.
           minLength: 1
     Beneficiary:
       type: object
@@ -1572,6 +1719,8 @@ components:
           - PARTNER_CASH_PICKUP
         maskedDestination:
           type: string
+          description: Four mask characters followed by the last (at most four) characters of the
+            opaque destination token, e.g. `****mab1`. Never contains destination details.
     TransferPurpose:
       type: string
       enum:
