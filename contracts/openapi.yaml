@@ -1406,7 +1406,12 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: OIDC access token with required scope, issuer, audience
+      description: OIDC access token from the trusted issuer. The API verifies the asymmetric signature
+        (RS256/ES256) against the issuer JWKS and requires the configured `iss`, an `aud` containing
+        the API audience, a non-expired `exp`, and a non-blank `sub`. Customer operations require
+        the `eurmad.customer` scope; role claims are not honored. The `sub` maps to exactly one
+        customer, and an unprovisioned subject receives `404`. Resources owned by another customer
+        also return `404`.
   schemas:
     Problem:
       type: object

@@ -26,6 +26,15 @@ server:
 fintech:
   mode: SIMULATION
   live-enabled: false
+  # OIDC resource server (FX-004). Tokens are validated locally against the issuer's JWKS:
+  # signature (RS256/ES256 only), iss, aud, exp/nbf and sub. Defaults point at a local
+  # development IdP only; plain http is accepted for loopback hosts only.
+  security:
+    oidc:
+      issuer: ${OIDC_ISSUER:http://localhost:8180/realms/eurmad-sim}
+      jwk-set-uri: ${OIDC_JWK_SET_URI:http://localhost:8180/realms/eurmad-sim/protocol/openid-connect/certs}
+      audience: ${OIDC_AUDIENCE:eurmad-api}
+      clock-skew: 30s
 
 management:
   endpoints:
