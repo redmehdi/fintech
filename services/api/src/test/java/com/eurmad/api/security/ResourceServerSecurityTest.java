@@ -17,8 +17,8 @@ import com.eurmad.api.identity.CurrentCustomer;
 import com.eurmad.api.identity.CustomerProfile;
 import com.eurmad.api.identity.CustomerRepository;
 import com.eurmad.api.identity.MeController;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -32,7 +32,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
@@ -91,10 +91,10 @@ class ResourceServerSecurityTest {
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-store");
         JsonNode body = mapper.readTree(response.getContentAsByteArray());
-        assertThat(body.path("id").asText()).isEqualTo(CUSTOMER_A_ID.toString());
-        assertThat(body.path("residencyCountry").asText()).isEqualTo("ES");
-        assertThat(body.path("kycStatus").asText()).isEqualTo("APPROVED");
-        assertThat(body.path("status").asText()).isEqualTo("ACTIVE");
+        assertThat(body.path("id").stringValue()).isEqualTo(CUSTOMER_A_ID.toString());
+        assertThat(body.path("residencyCountry").stringValue()).isEqualTo("ES");
+        assertThat(body.path("kycStatus").stringValue()).isEqualTo("APPROVED");
+        assertThat(body.path("status").stringValue()).isEqualTo("ACTIVE");
         assertThat(body.size()).isEqualTo(4);
         assertThat(response.getContentAsString()).doesNotContain(CUSTOMER_A_SUB);
     }
@@ -103,7 +103,7 @@ class ResourceServerSecurityTest {
     void eachSubjectSeesOnlyItsOwnProfile() throws Exception {
         JsonNode body = mapper.readTree(
                 perform(get("/v1/me"), ISSUER.token(CUSTOMER_B_SUB)).getContentAsByteArray());
-        assertThat(body.path("id").asText()).isEqualTo(CUSTOMER_B_ID.toString());
+        assertThat(body.path("id").stringValue()).isEqualTo(CUSTOMER_B_ID.toString());
     }
 
     @Test
@@ -240,8 +240,8 @@ class ResourceServerSecurityTest {
         assertThat(response.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-store");
         JsonNode body = mapper.readTree(response.getContentAsByteArray());
         assertThat(body.size()).isEqualTo(3);
-        assertThat(body.path("code").asText()).isEqualTo(code);
-        String correlationId = body.path("correlationId").asText();
+        assertThat(body.path("code").stringValue()).isEqualTo(code);
+        String correlationId = body.path("correlationId").stringValue();
         assertThat(UUID.fromString(correlationId).toString()).isEqualTo(correlationId);
         assertThat(response.getHeader("X-Correlation-Id")).isEqualTo(correlationId);
     }

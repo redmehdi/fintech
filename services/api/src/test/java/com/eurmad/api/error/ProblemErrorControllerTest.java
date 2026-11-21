@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
 import java.util.UUID;
@@ -37,7 +37,7 @@ class ProblemErrorControllerTest {
         "404, Not Found",
         "405, Method Not Allowed",
         "409, Conflict",
-        "422, Unprocessable Entity",
+        "422, Unprocessable Content",
         "429, Too Many Requests",
         "500, An unexpected server error occurred."
     })
@@ -60,9 +60,9 @@ class ProblemErrorControllerTest {
 
         JsonNode problem = mapper.readTree(response.getContentAsByteArray());
         assertThat(problem.size()).isEqualTo(3);
-        assertThat(problem.path("code").asText()).isEqualTo(HttpStatus.valueOf(statusCode).name());
-        assertThat(problem.path("message").asText()).isEqualTo(message);
-        String correlationId = problem.path("correlationId").asText();
+        assertThat(problem.path("code").stringValue()).isEqualTo(HttpStatus.valueOf(statusCode).name());
+        assertThat(problem.path("message").stringValue()).isEqualTo(message);
+        String correlationId = problem.path("correlationId").stringValue();
         assertThat(UUID.fromString(correlationId).toString()).isEqualTo(correlationId).isNotEqualTo(suppliedId);
         assertThat(response.getHeader("X-Correlation-Id")).isEqualTo(correlationId);
     }

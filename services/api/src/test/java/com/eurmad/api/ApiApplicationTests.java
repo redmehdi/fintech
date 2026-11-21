@@ -2,7 +2,7 @@ package com.eurmad.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.eurmad.api.config.FintechProperties;
 import com.eurmad.api.config.OperatingMode;
 import com.eurmad.api.security.TestOidcIssuer;
@@ -10,9 +10,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestComponent;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -26,11 +26,13 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.springframework.test.web.servlet.client.RestTestClient;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureRestTestClient
 @Testcontainers(disabledWithoutDocker = true)
 @Import(ApiApplicationTests.ErrorTestEndpoint.class)
 class ApiApplicationTests {
@@ -41,8 +43,8 @@ class ApiApplicationTests {
     private static final TestOidcIssuer ISSUER = new TestOidcIssuer();
 
     @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:16-alpine");
+    private static final PostgreSQLContainer POSTGRES =
+            new PostgreSQLContainer("postgres:16-alpine");
 
     @DynamicPropertySource
     static void configureDataSource(DynamicPropertyRegistry registry) {
@@ -59,7 +61,7 @@ class ApiApplicationTests {
         ISSUER.close();
     }
 
-    @Autowired private TestRestTemplate rest;
+    @Autowired private RestTestClient rest;
     @Autowired private FintechProperties properties;
     @Autowired private JdbcTemplate jdbc;
 
@@ -71,14 +73,14 @@ class ApiApplicationTests {
 
     @Test
     void healthEndpointIsUp() {
-        ResponseEntity<String> response = rest.getForEntity("/actuator/health", String.class);
+        ResponseEntity<String> response = RestTestSupport.getForEntity(rest, "/actuator/health", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("\"status\":\"UP\"");
     }
 
     @Test
     void infoEndpointReportsSimulationMode() {
-        ResponseEntity<String> response = rest.getForEntity("/actuator/info", String.class);
+        ResponseEntity<String> response = RestTestSupport.getForEntity(rest, "/actuator/info", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody())
                 .contains("\"operatingMode\":\"SIMULATION\"")
@@ -87,22 +89,25 @@ class ApiApplicationTests {
 
     @Test
     void publicActuatorEndpointsAnswerHeadProbesWithoutCredentials() {
-        assertThat(rest.exchange("/actuator/health", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class).getStatusCode())
+        assertThat(RestTestSupport.exchange(rest, "/actuator/health", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class)
+                        .getStatusCode())
                 .isEqualTo(HttpStatus.OK);
-        assertThat(rest.exchange("/actuator/info", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class).getStatusCode())
+        assertThat(RestTestSupport.exchange(rest, "/actuator/info", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class)
+                        .getStatusCode())
                 .isEqualTo(HttpStatus.OK);
-        assertThat(rest.exchange("/actuator/env", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class).getStatusCode())
+        assertThat(RestTestSupport.exchange(rest, "/actuator/env", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class)
+                        .getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
     void sensitiveActuatorEndpointsAreNotExposed() {
         // Denied by the security chain before routing (FX-004); also not exposed by actuator config.
-        assertThat(rest.getForEntity("/actuator/env", String.class).getStatusCode())
+        assertThat(RestTestSupport.getForEntity(rest, "/actuator/env", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(rest.getForEntity("/actuator/configprops", String.class).getStatusCode())
+        assertThat(RestTestSupport.getForEntity(rest, "/actuator/configprops", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
-        ResponseEntity<String> withToken = rest.exchange(
+        ResponseEntity<String> withToken = RestTestSupport.exchange(rest,
                 "/actuator/env", HttpMethod.GET, new HttpEntity<>(authorized()), String.class);
         assertThat(withToken.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(withToken.getBody()).doesNotContain("spring.datasource");
@@ -110,20 +115,22 @@ class ApiApplicationTests {
 
     @Test
     void missingApiRouteReturnsProblemEnvelope() {
-        assertProblem(rest.exchange("/v1/missing", HttpMethod.GET, new HttpEntity<>(authorized()), JsonNode.class),
+        assertProblem(RestTestSupport.exchange(
+                        rest, "/v1/missing", HttpMethod.GET, new HttpEntity<>(authorized()), JsonNode.class),
                 HttpStatus.NOT_FOUND, "Not Found");
     }
 
     @Test
     void unauthenticatedApiRouteReturnsUnauthorizedProblem() {
-        assertProblem(rest.getForEntity("/v1/missing", JsonNode.class), HttpStatus.UNAUTHORIZED, "Unauthorized");
+        assertProblem(RestTestSupport.getForEntity(rest, "/v1/missing", JsonNode.class),
+                HttpStatus.UNAUTHORIZED, "Unauthorized");
     }
 
     @Test
     void unhandledExceptionReturnsClientSafeProblem() {
         HttpHeaders headers = authorized();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        ResponseEntity<JsonNode> response = rest.postForEntity(
+        ResponseEntity<JsonNode> response = RestTestSupport.postForEntity(rest,
                 ERROR_TEST_PATH, new HttpEntity<>("{}", headers), JsonNode.class);
 
         assertProblem(response, HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected server error occurred.");
@@ -132,7 +139,7 @@ class ApiApplicationTests {
 
     @Test
     void unsupportedMethodReturnsProblemAndPreservesAllow() {
-        ResponseEntity<JsonNode> response = rest.exchange(
+        ResponseEntity<JsonNode> response = RestTestSupport.exchange(rest,
                 ERROR_TEST_PATH, HttpMethod.GET, new HttpEntity<>(authorized()), JsonNode.class);
 
         assertProblem(response, HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed");
@@ -143,7 +150,7 @@ class ApiApplicationTests {
     void unsupportedMediaTypeReturnsProblem() {
         HttpHeaders headers = authorized();
         headers.setContentType(MediaType.TEXT_PLAIN);
-        ResponseEntity<JsonNode> response = rest.postForEntity(
+        ResponseEntity<JsonNode> response = RestTestSupport.postForEntity(rest,
                 ERROR_TEST_PATH, new HttpEntity<>("synthetic text", headers), JsonNode.class);
 
         assertProblem(response, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported Media Type");
@@ -174,9 +181,9 @@ class ApiApplicationTests {
         JsonNode body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.size()).isEqualTo(3);
-        assertThat(body.path("code").asText()).isEqualTo(status.name());
-        assertThat(body.path("message").asText()).isEqualTo(message);
-        String correlationId = body.path("correlationId").asText();
+        assertThat(body.path("code").stringValue()).isEqualTo(status.name());
+        assertThat(body.path("message").stringValue()).isEqualTo(message);
+        String correlationId = body.path("correlationId").stringValue();
         assertThat(UUID.fromString(correlationId).toString()).isEqualTo(correlationId);
         assertThat(response.getHeaders().getFirst("X-Correlation-Id")).isEqualTo(correlationId);
     }
