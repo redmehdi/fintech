@@ -9,7 +9,8 @@ import com.eurmad.api.identity.AuthenticatedCustomer;
 import com.eurmad.api.identity.EligibleCustomer;
 import com.eurmad.api.kyc.VerificationDecision.Outcome;
 import com.eurmad.api.security.TestOidcIssuer;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.eurmad.api.RestTestSupport;
+import tools.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,9 +23,9 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestComponent;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -36,14 +37,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /** FX-005 KYC sandbox flow, eligibility gate and no-document storage against PostgreSQL. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureRestTestClient
 @Testcontainers(disabledWithoutDocker = true)
 @Import(KycIntegrationTest.EligibleOperationProbe.class)
 class KycIntegrationTest {
@@ -52,7 +55,7 @@ class KycIntegrationTest {
     private static final TestOidcIssuer ISSUER = new TestOidcIssuer();
 
     @Container
-    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
@@ -72,7 +75,7 @@ class KycIntegrationTest {
         ISSUER.close();
     }
 
-    @Autowired private TestRestTemplate rest;
+    @Autowired private RestTestClient rest;
     @Autowired private JdbcTemplate jdbc;
     @MockitoSpyBean private SandboxIdentityVerificationProvider provider;
 
@@ -105,7 +108,7 @@ class KycIntegrationTest {
         if (body != null) {
             headers.setContentType(MediaType.APPLICATION_JSON);
         }
-        return rest.exchange(path, method, new HttpEntity<>(body, headers), JsonNode.class);
+        return RestTestSupport.exchange(rest, path, method, new HttpEntity<>(body, headers), JsonNode.class);
     }
 
     private ResponseEntity<JsonNode> startSession(String subject) {
@@ -123,23 +126,23 @@ class KycIntegrationTest {
         ResponseEntity<JsonNode> response = call(HttpMethod.GET, "/v1/kyc/status", subject, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody().path("status").asText()).isEqualTo("NOT_STARTED");
-        assertThat(response.getBody().path("mode").asText()).isEqualTo("SIMULATION");
+        assertThat(response.getBody().path("status").stringValue()).isEqualTo("NOT_STARTED");
+        assertThat(response.getBody().path("mode").stringValue()).isEqualTo("SIMULATION");
         assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
     }
 
     @Test
     void sandboxApprovalMakesCustomerEligibleAndIsAudited() {
         String subject = customer("NOT_STARTED", "ACTIVE");
-        assertThat(probe(subject)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(probe(subject)).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
 
         ResponseEntity<JsonNode> session = startSession(subject);
 
         assertThat(session.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(session.getBody().path("status").asText()).isEqualTo("APPROVED");
-        assertThat(session.getBody().path("mode").asText()).isEqualTo("SIMULATION");
+        assertThat(session.getBody().path("status").stringValue()).isEqualTo("APPROVED");
+        assertThat(session.getBody().path("mode").stringValue()).isEqualTo("SIMULATION");
         assertThat(session.getBody().has("mockVerificationUrl")).isFalse();
-        UUID caseId = UUID.fromString(session.getBody().path("id").asText());
+        UUID caseId = UUID.fromString(session.getBody().path("id").stringValue());
         String correlationId = session.getHeaders().getFirst("X-Correlation-Id");
         assertThat(UUID.fromString(correlationId)).isNotNull();
 
@@ -164,7 +167,7 @@ class KycIntegrationTest {
         assertThat(audit).allSatisfy(r -> assertThat((String) r.get("meta"))
                 .contains("\"correlationId\": \"" + correlationId + "\""));
 
-        assertThat(call(HttpMethod.GET, "/v1/kyc/status", subject, null).getBody().path("status").asText())
+        assertThat(call(HttpMethod.GET, "/v1/kyc/status", subject, null).getBody().path("status").stringValue())
                 .isEqualTo("APPROVED");
         assertThat(probe(subject)).isEqualTo(HttpStatus.NO_CONTENT);
     }
@@ -174,12 +177,12 @@ class KycIntegrationTest {
         assertThat(probe(customer("APPROVED", "ACTIVE"))).isEqualTo(HttpStatus.NO_CONTENT);
         for (String kyc : List.of("NOT_STARTED", "PENDING", "REJECTED", "EXPIRED")) {
             ResponseEntity<JsonNode> response = call(HttpMethod.POST, PROBE_PATH, customer(kyc, "ACTIVE"), null);
-            assertThat(response.getStatusCode()).as(kyc).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+            assertThat(response.getStatusCode()).as(kyc).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
             assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
-            assertThat(response.getBody().path("correlationId").asText()).isNotBlank();
+            assertThat(response.getBody().path("correlationId").stringValue()).isNotBlank();
         }
-        assertThat(probe(customer("APPROVED", "SUSPENDED"))).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(probe(customer("APPROVED", "CLOSED"))).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(probe(customer("APPROVED", "SUSPENDED"))).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+        assertThat(probe(customer("APPROVED", "CLOSED"))).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
         assertThat(probe(null)).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(probe(TestOidcIssuer.UNPROVISIONED_SUB)).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -192,12 +195,12 @@ class KycIntegrationTest {
         ResponseEntity<JsonNode> session = startSession(subject);
 
         assertThat(session.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(session.getBody().path("status").asText()).isEqualTo("REJECTED");
+        assertThat(session.getBody().path("status").stringValue()).isEqualTo("REJECTED");
         assertThat(storedKycStatus(subject)).isEqualTo("REJECTED");
         assertThat(jdbc.queryForObject("SELECT decision_reason_code FROM kyc_cases WHERE customer_id = ?",
                 String.class, customerId(subject))).isEqualTo("SANDBOX_SIMULATED_REJECTION");
         assertThat(startSession(subject).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(probe(subject)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(probe(subject)).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     @Test
@@ -207,14 +210,14 @@ class KycIntegrationTest {
 
         ResponseEntity<JsonNode> session = startSession(subject);
 
-        assertThat(session.getBody().path("status").asText()).isEqualTo("PENDING");
+        assertThat(session.getBody().path("status").stringValue()).isEqualTo("PENDING");
         assertThat(storedKycStatus(subject)).isEqualTo("PENDING");
         assertThat(count("SELECT count(*) FROM kyc_cases WHERE customer_id = ? AND decided_at IS NULL",
                 customerId(subject))).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM audit_events WHERE resource_id = ?",
-                session.getBody().path("id").asText())).isEqualTo(1);
+                session.getBody().path("id").stringValue())).isEqualTo(1);
         assertThat(startSession(subject).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(probe(subject)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(probe(subject)).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     @Test
@@ -241,7 +244,7 @@ class KycIntegrationTest {
     void suspendedOrClosedCustomersCannotStartVerification() {
         for (String status : List.of("SUSPENDED", "CLOSED")) {
             String subject = customer("NOT_STARTED", status);
-            assertThat(startSession(subject).getStatusCode()).as(status).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+            assertThat(startSession(subject).getStatusCode()).as(status).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
             assertThat(storedKycStatus(subject)).isEqualTo("NOT_STARTED");
         }
     }

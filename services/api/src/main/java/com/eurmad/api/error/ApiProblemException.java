@@ -34,7 +34,7 @@ public final class ApiProblemException extends RuntimeException {
 
     /** The caller is not eligible for the operation or a business rule rejected it. */
     public static ApiProblemException unprocessable() {
-        return new ApiProblemException(HttpStatus.UNPROCESSABLE_ENTITY);
+        return new ApiProblemException(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     public HttpStatus status() {

@@ -6,17 +6,18 @@ import static com.eurmad.api.security.TestOidcIssuer.UNPROVISIONED_SUB;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.eurmad.api.error.ApiProblemException;
+import com.eurmad.api.RestTestSupport;
 import com.eurmad.api.security.Ownership;
 import com.eurmad.api.security.TestOidcIssuer;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestComponent;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -28,15 +29,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /** End-to-end sub→customer mapping and BOLA protection against PostgreSQL and synthetic fixtures. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureRestTestClient
 @Testcontainers(disabledWithoutDocker = true)
 @Import(IdentityIntegrationTest.BeneficiaryProbeController.class)
 @Sql("/db/testdata/FX-004__synthetic_identities.sql")
@@ -49,7 +52,7 @@ class IdentityIntegrationTest {
     private static final TestOidcIssuer ISSUER = new TestOidcIssuer();
 
     @Container
-    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
@@ -66,7 +69,7 @@ class IdentityIntegrationTest {
         ISSUER.close();
     }
 
-    @Autowired private TestRestTemplate rest;
+    @Autowired private RestTestClient rest;
 
     @Test
     void syntheticSubjectsMapToTheirOwnCustomer() {
@@ -74,12 +77,12 @@ class IdentityIntegrationTest {
         ResponseEntity<JsonNode> b = get("/v1/me", ISSUER.token(CUSTOMER_B_SUB));
 
         assertThat(a.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(a.getBody().path("id").asText()).isEqualTo(CUSTOMER_A_ID);
-        assertThat(a.getBody().path("residencyCountry").asText()).isEqualTo("ES");
-        assertThat(a.getBody().path("kycStatus").asText()).isEqualTo("APPROVED");
+        assertThat(a.getBody().path("id").stringValue()).isEqualTo(CUSTOMER_A_ID);
+        assertThat(a.getBody().path("residencyCountry").stringValue()).isEqualTo("ES");
+        assertThat(a.getBody().path("kycStatus").stringValue()).isEqualTo("APPROVED");
         assertThat(b.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(b.getBody().path("id").asText()).isEqualTo(CUSTOMER_B_ID);
-        assertThat(b.getBody().path("residencyCountry").asText()).isEqualTo("MA");
+        assertThat(b.getBody().path("id").stringValue()).isEqualTo(CUSTOMER_B_ID);
+        assertThat(b.getBody().path("residencyCountry").stringValue()).isEqualTo("MA");
     }
 
     @Test
@@ -119,14 +122,14 @@ class IdentityIntegrationTest {
         ResponseEntity<JsonNode> response = get("/v1/me", null);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
-        assertThat(response.getBody().path("code").asText()).isEqualTo("UNAUTHORIZED");
+        assertThat(response.getBody().path("code").stringValue()).isEqualTo("UNAUTHORIZED");
     }
 
     @Test
     void ownerReadsOwnBeneficiary() {
         ResponseEntity<JsonNode> response = get("/v1/test/beneficiaries/" + BENEFICIARY_OF_A, ISSUER.token(CUSTOMER_A_SUB));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody().path("maskedDestination").asText()).isEqualTo("****0001");
+        assertThat(response.getBody().path("maskedDestination").stringValue()).isEqualTo("****0001");
     }
 
     @Test
@@ -134,7 +137,7 @@ class IdentityIntegrationTest {
         ResponseEntity<JsonNode> response =
                 get("/v1/test/beneficiaries/" + BENEFICIARY_OF_A, ISSUER.token(CUSTOMER_B_SUB));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(response.getBody().path("code").asText()).isEqualTo("NOT_FOUND");
+        assertThat(response.getBody().path("code").stringValue()).isEqualTo("NOT_FOUND");
         assertThat(response.getBody().toString()).doesNotContain("Synthetic Beneficiary A", "****0001");
     }
 
@@ -143,7 +146,7 @@ class IdentityIntegrationTest {
         if (token != null) {
             headers.setBearerAuth(token);
         }
-        return rest.exchange(path, HttpMethod.GET, new HttpEntity<>(headers), JsonNode.class);
+        return RestTestSupport.exchange(rest, path, HttpMethod.GET, new HttpEntity<>(headers), JsonNode.class);
     }
 
     /**

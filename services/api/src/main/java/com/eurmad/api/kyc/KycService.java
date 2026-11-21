@@ -1,8 +1,8 @@
 package com.eurmad.api.kyc;
 
 import com.eurmad.api.error.ApiProblemException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,7 +113,7 @@ public class KycService {
                     "INSERT INTO audit_events (actor_type, actor_ref, action, resource_type, resource_id,"
                             + " safe_metadata) VALUES (?, ?, ?, 'KYC_CASE', ?, ?::jsonb)",
                     actorType, actorRef, action, caseId.toString(), mapper.writeValueAsString(metadata));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Unable to serialise audit metadata", e);
         }
     }
