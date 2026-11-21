@@ -74,6 +74,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/kyc/status:
     get:
       tags:
@@ -129,6 +131,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/kyc/sessions:
     post:
       tags:
@@ -184,6 +188,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/beneficiaries:
     get:
       tags:
@@ -241,6 +247,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
     post:
       tags:
       - Beneficiaries
@@ -301,6 +309,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: Idempotency-Key
         in: header
@@ -371,6 +381,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: Idempotency-Key
         in: header
@@ -437,6 +449,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
     post:
       tags:
       - Transfers
@@ -497,6 +511,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: Idempotency-Key
         in: header
@@ -561,6 +577,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: transferId
         in: path
@@ -638,6 +656,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/offers:
     get:
       tags:
@@ -695,6 +715,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: sourceCurrency
         in: query
@@ -770,6 +792,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: Idempotency-Key
         in: header
@@ -834,6 +858,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: offerId
         in: path
@@ -911,6 +937,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/matches:
     get:
       tags:
@@ -968,6 +996,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/matches/{matchId}:
     get:
       tags:
@@ -1023,6 +1053,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: matchId
         in: path
@@ -1100,6 +1132,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/matches/{matchId}/decline:
     post:
       tags:
@@ -1170,6 +1204,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/admin/reviews:
     get:
       tags:
@@ -1227,6 +1263,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/admin/reviews/{reviewId}/decision:
     post:
       tags:
@@ -1288,6 +1326,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
       parameters:
       - name: reviewId
         in: path
@@ -1335,11 +1375,32 @@ paths:
           description: Accepted for processing
         '400':
           description: Invalid payload
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
           description: Signature or timestamp invalid
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
           description: Conflicting event ID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
+  responses:
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
   securitySchemes:
     bearerAuth:
       type: http
@@ -1349,6 +1410,7 @@ components:
   schemas:
     Problem:
       type: object
+      description: Shared API error envelope. Messages and optional details contain only client-safe information.
       required:
       - code
       - message
@@ -1361,6 +1423,7 @@ components:
         correlationId:
           type: string
           format: uuid
+          description: Server-generated error identifier, also returned in the X-Correlation-Id response header.
         details:
           type: object
           additionalProperties: true

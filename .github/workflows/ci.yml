@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Contract, build, tests and security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install checksum-pinned oasdiff
+        run: |
+          archive="$RUNNER_TEMP/oasdiff.tar.gz"
+          curl --fail --silent --show-error --location --output "$archive" \
+            https://github.com/oasdiff/oasdiff/releases/download/v1.38.0/oasdiff_1.38.0_linux_amd64.tar.gz
+          printf '%s  %s\n' 613037fd6a1d3362a1b742d6d86c338c0eb5ab3511f4942ce3948e78720ea2da "$archive" \
+            | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" oasdiff
+          printf '%s\n' "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Reject breaking API changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          GH_TOKEN: ${{ github.event_name == 'push' && github.token || '' }}
+        run: |
+          bash scripts/check-contract.sh "$BASE_SHA"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - run: make install
+      - run: make verify
+      - name: Verify the CI gates reject breaking changes and type errors
+        run: bash scripts/test-ci-gates.sh
+
+      - name: Scan dependencies and source for secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          skip-dirs: .git,apps/web/node_modules,apps/web/.next
