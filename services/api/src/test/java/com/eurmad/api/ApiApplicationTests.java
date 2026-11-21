@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.eurmad.api.config.FintechProperties;
 import com.eurmad.api.config.OperatingMode;
+import com.eurmad.api.security.TestOidcIssuer;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,6 +38,8 @@ class ApiApplicationTests {
     private static final String ERROR_TEST_PATH = "/v1/test/error";
     private static final String SYNTHETIC_EXCEPTION_MESSAGE = "synthetic-private-failure";
 
+    private static final TestOidcIssuer ISSUER = new TestOidcIssuer();
+
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine");
@@ -45,6 +49,14 @@ class ApiApplicationTests {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("fintech.security.oidc.issuer", () -> TestOidcIssuer.ISSUER);
+        registry.add("fintech.security.oidc.jwk-set-uri", ISSUER::jwkSetUri);
+        registry.add("fintech.security.oidc.audience", () -> TestOidcIssuer.AUDIENCE);
+    }
+
+    @AfterAll
+    static void stopIssuer() {
+        ISSUER.close();
     }
 
     @Autowired private TestRestTemplate rest;
@@ -74,21 +86,42 @@ class ApiApplicationTests {
     }
 
     @Test
+    void publicActuatorEndpointsAnswerHeadProbesWithoutCredentials() {
+        assertThat(rest.exchange("/actuator/health", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(rest.exchange("/actuator/info", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(rest.exchange("/actuator/env", HttpMethod.HEAD, HttpEntity.EMPTY, Void.class).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void sensitiveActuatorEndpointsAreNotExposed() {
+        // Denied by the security chain before routing (FX-004); also not exposed by actuator config.
         assertThat(rest.getForEntity("/actuator/env", String.class).getStatusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(rest.getForEntity("/actuator/configprops", String.class).getStatusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+        ResponseEntity<String> withToken = rest.exchange(
+                "/actuator/env", HttpMethod.GET, new HttpEntity<>(authorized()), String.class);
+        assertThat(withToken.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(withToken.getBody()).doesNotContain("spring.datasource");
     }
 
     @Test
     void missingApiRouteReturnsProblemEnvelope() {
-        assertProblem(rest.getForEntity("/v1/missing", JsonNode.class), HttpStatus.NOT_FOUND, "Not Found");
+        assertProblem(rest.exchange("/v1/missing", HttpMethod.GET, new HttpEntity<>(authorized()), JsonNode.class),
+                HttpStatus.NOT_FOUND, "Not Found");
+    }
+
+    @Test
+    void unauthenticatedApiRouteReturnsUnauthorizedProblem() {
+        assertProblem(rest.getForEntity("/v1/missing", JsonNode.class), HttpStatus.UNAUTHORIZED, "Unauthorized");
     }
 
     @Test
     void unhandledExceptionReturnsClientSafeProblem() {
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = authorized();
         headers.setContentType(MediaType.APPLICATION_JSON);
         ResponseEntity<JsonNode> response = rest.postForEntity(
                 ERROR_TEST_PATH, new HttpEntity<>("{}", headers), JsonNode.class);
@@ -99,7 +132,8 @@ class ApiApplicationTests {
 
     @Test
     void unsupportedMethodReturnsProblemAndPreservesAllow() {
-        ResponseEntity<JsonNode> response = rest.getForEntity(ERROR_TEST_PATH, JsonNode.class);
+        ResponseEntity<JsonNode> response = rest.exchange(
+                ERROR_TEST_PATH, HttpMethod.GET, new HttpEntity<>(authorized()), JsonNode.class);
 
         assertProblem(response, HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed");
         assertThat(response.getHeaders().getAllow()).contains(HttpMethod.POST);
@@ -107,7 +141,7 @@ class ApiApplicationTests {
 
     @Test
     void unsupportedMediaTypeReturnsProblem() {
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = authorized();
         headers.setContentType(MediaType.TEXT_PLAIN);
         ResponseEntity<JsonNode> response = rest.postForEntity(
                 ERROR_TEST_PATH, new HttpEntity<>("synthetic text", headers), JsonNode.class);
@@ -125,6 +159,12 @@ class ApiApplicationTests {
                         "test:fx-002:synthetic-customer-001");
 
         assertThat(customerCount).isEqualTo(1);
+    }
+
+    private static HttpHeaders authorized() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(ISSUER.token("test:fx-002:synthetic-customer-001"));
+        return headers;
     }
 
     private static void assertProblem(ResponseEntity<JsonNode> response, HttpStatus status, String message) {

@@ -9,7 +9,7 @@ trap 'rm -f "$type_error" "$tmp/breaking.yaml" "$tmp/contract.log" "$tmp/typeche
 awk '/^  \/v1\/me:$/ { drop = 1; next } /^  \/|^components:/ { drop = 0 } !drop' \
   contracts/openapi.yaml > "$tmp/breaking.yaml"
 if bash scripts/check-contract.sh HEAD "$tmp/breaking.yaml" > "$tmp/contract.log" 2>&1 ||
-    ! grep -Fq 'api-removed-without-deprecation' "$tmp/contract.log"; then
+    ! grep -Fq 'api-path-removed-without-deprecation' "$tmp/contract.log"; then
   cat "$tmp/contract.log"
   printf '%s\n' 'Expected the compatibility gate to reject the removed operation.' >&2
   exit 1
