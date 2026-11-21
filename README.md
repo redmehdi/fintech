@@ -50,6 +50,8 @@ Edit `contracts/openapi.yaml` first. `make contract-generate` validates the spec
 
 CI compares the contract in the proposed merge against the pull request base, or against the previous branch tip on pushes to `main`. On a new branch it uses the parent commit when that commit has a contract. The workflow verifies the oasdiff release checksum, then checks that removing an operation fails the compatibility gate and a TypeScript error fails `make verify`. It also fails on build and test failures or high- or critical-severity security findings.
 
+CI sets `FINTECH_MAVEN=mvn` to use Maven from the runner for contract generation and backend checks. Local builds use the pinned wrapper by default.
+
 Spring error responses use `application/problem+json` with `code`, `message`, and a server-generated UUID in both `correlationId` and the `X-Correlation-Id` header. The TypeScript client exposes the HTTP response on `ResponseError` and exports the generated `Problem` model.
 
 ## Layout

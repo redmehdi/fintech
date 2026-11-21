@@ -19,7 +19,7 @@ help:
 	@printf 'make task ID=FX-001          Create a new clean Git feature branch\n'
 	@printf 'make dry-run ID=FX-001       Show planned pair-programming actions\n'
 	@printf 'make pair ID=FX-001          Claude implement + Codex review + repair\n'
-	@printf 'make review ID=FX-001        Review uncommitted changes without implementation\n'
+	@printf 'make review ID=FX-001        Review changes and reuse the saved Codex review session\n'
 	@printf 'make verify                  Check scaffold + builds + tests\n'
 doctor:
 	@bash scripts/doctor.sh
@@ -41,18 +41,18 @@ install:
 	npm --prefix apps/web ci
 build: contract-generate
 	npm --prefix apps/web run build
-	cd services/api && ./mvnw -B -ntp -DskipTests package
+	cd services/api && "$${FINTECH_MAVEN:-./mvnw}" -B -ntp -DskipTests package
 test: contract-generate
 	npm --prefix apps/web test
-	cd services/api && ./mvnw -B -ntp test
+	cd services/api && "$${FINTECH_MAVEN:-./mvnw}" -B -ntp test
 lint: contract-generate
 	npm --prefix apps/web run lint
 	npm --prefix apps/web run typecheck
-	cd services/api && ./mvnw -B -ntp validate compile
+	cd services/api && "$${FINTECH_MAVEN:-./mvnw}" -B -ntp validate compile
 web-dev: contract-generate
 	npm --prefix apps/web run dev
 api-run:
-	cd services/api && ./mvnw -B -ntp spring-boot:run
+	cd services/api && "$${FINTECH_MAVEN:-./mvnw}" -B -ntp spring-boot:run
 
 # --- FX-002 local infrastructure ---------------------------------------------
 infra-up:
@@ -64,4 +64,4 @@ infra-logs:
 
 # --- FX-003 contract tooling -------------------------------------------------
 contract-generate:
-	services/api/mvnw -B -ntp -f contracts/pom.xml generate-sources
+	cd services/api && "$${FINTECH_MAVEN:-./mvnw}" -B -ntp -f ../../contracts/pom.xml generate-sources

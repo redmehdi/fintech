@@ -1,5 +1,6 @@
 """Offline CLI orchestration tests; fake agents never contact external services."""
 from pathlib import Path
+import json
 import os
 import shutil
 import subprocess
@@ -53,31 +54,43 @@ else
 fi
 printf 'FAKE CLAUDE OK\\n' >&2
 """)
-        self.agent("codex", """#!/usr/bin/env bash
-set -euo pipefail
-file=''
-is_review=0
-is_resume=0
-resume_id="${3:-}"
-while (($#)); do
-  [[ "$1" != 'review' ]] || is_review=1
-  [[ "$1" != 'resume' ]] || is_resume=1
-  if [[ "$1" == '-o' ]]; then shift; file="$1"; fi
-  shift
-done
-if ((is_review)); then
-  [[ "${FAIL_REVIEW:-0}" != '1' ]] || exit 15
-  [[ -n "$file" ]] || exit 2
-  printf 'FINDING: check tests; mock review\\n' > "$file"
-  printf 'FAKE CODEX REVIEW OK\\n'
-elif ((is_resume)); then
-  [[ "$resume_id" == 'mock-session-001' ]] || exit 16
-  printf 'fixed\\n' > mock-codex-fixed.txt
-  printf 'FAKE CODEX RESUME OK\\n'
-else
-  printf 'implemented\\n' > mock-codex-implemented.txt
-  printf '{"type":"thread.started","thread_id":"mock-session-001"}\\n'
-fi
+        self.agent("codex", """#!/usr/bin/env python3
+from pathlib import Path
+import json
+import os
+import sys
+import uuid
+
+args = sys.argv[1:]
+assert args[0] == 'exec'
+sandbox = args[args.index('--sandbox') + 1]
+resuming = 'resume' in args
+if resuming:
+    session_id = args[args.index('resume') + 1]
+    uuid.UUID(session_id)
+else:
+    session_id = str(uuid.uuid4())
+with Path('.ai-runs/codex-calls.jsonl').open('a') as calls:
+    print(json.dumps([sandbox, resuming, session_id]), file=calls)
+
+if sandbox == 'read-only':
+    assert args[-1] == '-'
+    prompt = sys.stdin.read()
+    assert 'Independent review task' in prompt and '{{TICKET_ID}}' not in prompt
+    if os.getenv('FAIL_REVIEW') == '1' or (resuming and os.getenv('FAIL_RESUME') == '1'):
+        sys.exit(15)
+    Path(args[args.index('-o') + 1]).write_text('FINDING: check tests\\n')
+elif resuming:
+    assert sandbox == 'workspace-write'
+    Path('mock-codex-fixed.txt').write_text('fixed\\n')
+else:
+    assert sandbox == 'workspace-write'
+    Path('mock-codex-implemented.txt').write_text('implemented\\n')
+
+if '--json' in args:
+    if resuming and os.getenv('WRONG_SESSION') == '1':
+        session_id = str(uuid.uuid4())
+    print(json.dumps({'type': 'thread.started', 'thread_id': session_id}))
 """)
 
     def agent(self, name, body):
@@ -88,6 +101,16 @@ fi
     def task_branch(self, ticket="FX-001"):
         result = run(["bash", "scripts/new-task.sh", ticket], self.repo, self.env)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def codex_calls(self):
+        trace = self.repo / ".ai-runs" / "codex-calls.jsonl"
+        return [json.loads(line) for line in trace.read_text().splitlines()]
+
+    def review(self, *options, ticket="FX-001", env=None):
+        return run(
+            ["bash", "scripts/pair.sh", ticket, "--skip-implement", "--fix-rounds", "0", *options],
+            self.repo, env or self.env,
+        )
 
     def test_dry_run_does_not_execute_agents(self):
         self.task_branch()
@@ -102,7 +125,7 @@ fi
         result = run(["bash", "scripts/pair.sh", "FX-003", "--dry-run"], self.repo, self.env)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertLess(result.stdout.index("Codex: codex exec --json"), result.stdout.index("Reviewer: Claude"))
-        self.assertIn("codex exec resume <session-id>", result.stdout)
+        self.assertIn("codex exec --sandbox workspace-write resume <session-id>", result.stdout)
         self.assertFalse((self.repo / "mock-codex-implemented.txt").exists())
 
     def test_fx003_full_cycle_resumes_codex_after_claude_review(self):
@@ -116,16 +139,30 @@ fi
         self.assertIn("MOCK CLAUDE REVIEW", reports[0].read_text())
         session_files = list((self.repo / ".ai-runs").glob("*FX-003-*/codex-session-id.txt"))
         self.assertEqual(len(session_files), 1)
-        self.assertEqual(session_files[0].read_text().strip(), "mock-session-001")
+        session_id = session_files[0].read_text().strip()
+        self.assertEqual(self.codex_calls(), [
+            ["workspace-write", False, session_id],
+            ["workspace-write", True, session_id],
+        ])
 
-    def test_full_cycle_two_reviews_and_no_commit(self):
+    def test_full_cycle_reuses_codex_session_and_does_not_commit(self):
         self.task_branch()
-        result = run(["bash", "scripts/pair.sh", "FX-001"], self.repo, self.env)
+        result = run(["bash", "scripts/pair.sh", "FX-001", "--fix-rounds", "2"], self.repo, self.env)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue((self.repo / "mock-implemented.txt").exists())
         self.assertTrue((self.repo / "mock-fixed.txt").exists())
-        logs = list((self.repo / ".ai-runs").glob("*FX-001-*/review-1.md"))
-        self.assertEqual(len(logs), 1)
+        calls = self.codex_calls()
+        session_id = calls[0][2]
+        self.assertEqual(calls, [
+            ["read-only", False, session_id],
+            ["read-only", True, session_id],
+            ["read-only", True, session_id],
+        ])
+        self.assertIn(f"codex resume --sandbox workspace-write {session_id}", result.stderr)
+        run_dir = next((self.repo / ".ai-runs").glob("*FX-001-*"))
+        self.assertEqual((run_dir / "codex-session-id.txt").read_text().strip(), session_id)
+        for round_number in range(3):
+            self.assertIn("FINDING", (run_dir / f"review-{round_number}.md").read_text())
         self.assertFalse((self.repo / ".ai-runs" / ".lock").exists())
         self.assertNotEqual(run(["git", "status", "--porcelain"], self.repo).stdout.strip(), "")
         self.assertEqual(run(["git", "rev-list", "--count", "HEAD"], self.repo).stdout.strip(), "1")
@@ -140,10 +177,49 @@ fi
     def test_can_review_existing_changes_without_impl(self):
         self.task_branch()
         (self.repo / "manual.txt").write_text("manual\n")
-        result = run(["bash", "scripts/pair.sh", "FX-001", "--skip-implement", "--fix-rounds", "0"], self.repo, self.env)
+        result = self.review()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse((self.repo / "mock-implemented.txt").exists())
         self.assertTrue(list((self.repo / ".ai-runs").glob("*FX-001-*/review-0.md")))
+
+        (self.repo / "manual.txt").write_text("updated after review\n")
+        result = self.review()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        first, follow_up = self.codex_calls()
+        self.assertEqual(follow_up, ["read-only", True, first[2]])
+
+    def test_review_sessions_are_scoped_to_ticket_and_branch(self):
+        self.task_branch()
+        (self.repo / "manual.txt").write_text("manual\n")
+        self.assertEqual(self.review().returncode, 0)
+        self.assertEqual(self.review(ticket="FX-004").returncode, 0)
+        self.assertEqual(run(["git", "switch", "-c", "feature/another"], self.repo).returncode, 0)
+        self.assertEqual(self.review().returncode, 0)
+        self.assertEqual(run(["git", "switch", "feature/fx-001"], self.repo).returncode, 0)
+        self.assertEqual(self.review().returncode, 0)
+        first, other_ticket, other_branch, returning = self.codex_calls()
+        self.assertEqual(len({first[2], other_ticket[2], other_branch[2]}), 3)
+        self.assertEqual(returning, ["read-only", True, first[2]])
+
+    def test_failed_resume_keeps_session_until_explicit_reset(self):
+        self.task_branch()
+        (self.repo / "manual.txt").write_text("manual\n")
+        self.assertEqual(self.review().returncode, 0)
+        result = self.review(env=dict(self.env, FAIL_RESUME="1"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--new-session", result.stderr)
+        self.assertFalse((self.repo / ".ai-runs" / ".lock").exists())
+        result = self.review(env=dict(self.env, WRONG_SESSION="1"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("instead of", result.stderr)
+        self.assertEqual(self.review("--new-session").returncode, 0)
+        self.assertEqual(self.review().returncode, 0)
+        first, failed, mismatch, reset, after_reset = self.codex_calls()
+        self.assertEqual(failed, ["read-only", True, first[2]])
+        self.assertEqual(mismatch, failed)
+        self.assertFalse(reset[1])
+        self.assertNotEqual(reset[2], first[2])
+        self.assertEqual(after_reset, ["read-only", True, reset[2]])
 
     def test_review_failure_propagates_and_unlocks(self):
         self.task_branch()

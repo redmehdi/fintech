@@ -1,6 +1,6 @@
 # EUR↔MAD Fintech · Claude + Codex CLI Pair Programming
 
-This package includes the original finance architecture and a scripted **Claude implement → Codex review → Claude repair → final Codex review** loop. **No real funds move**. Agents do not merge, push, commit or deploy.
+This package includes the original finance architecture and a scripted **Claude implement → Codex review → Claude repair → resume Codex review** loop. **No real funds move**. Agents do not merge, push, commit or deploy.
 
 ## Requirements (Linux)
 
@@ -40,7 +40,9 @@ bash scripts/pair.sh FX-001
 # Or: make pair ID=FX-001
 ```
 
-This follows the implementer/reviewer assignment in `docs/BACKLOG.md`. For most tickets it runs Claude implementation → local checks → read-only Codex review → Claude repair → checks and final Codex review. FX-003 uses Codex implementation → local checks → read-only Claude review → Codex resume/repair → checks and final Claude review. Codex resumes the implementation session id captured from its JSONL event stream. Reports, prompts and the Codex session id are in `.ai-runs/` and ignored by Git. Read the final review before deciding to commit.
+The default loop runs Claude implementation and repair with read-only Codex reviews. Every review after the first resumes the same Codex session and checks the current changes. FX-003 uses Codex implementation and repair with read-only Claude reviews. Codex resumes its implementation session for repairs on that ticket.
+
+The run directory under `.ai-runs/` contains the reports, prompts, and `codex-session-id.txt`. Read the final review before deciding to commit.
 
 Preview role selection without launching either agent:
 
@@ -69,7 +71,12 @@ To start the next ticket, finish prior changes, switch to main, merge the approv
 claude
 # Implement assigned ticket interactively; exit Claude without committing.
 bash scripts/pair.sh FX-001 --skip-implement --fix-rounds 0
+# Or: make review ID=FX-001
 ```
+
+Repeat `make review ID=FX-001` after further edits to reuse the saved Codex review session for the same ticket and branch in this checkout. The first review creates a session when none is saved. To start fresh, add `--new-session` to the script command above.
+
+To ask Codex for a scoped improvement or fix, run the `codex resume --sandbox workspace-write <session-id>` command printed by the script from the same checkout. That session has the review findings and can continue interactively. If Codex makes edits, have an independent reviewer check them before sign-off.
 
 ## Customize and debug
 
@@ -85,7 +92,7 @@ bash scripts/pair.sh FX-001 --skip-implement --fix-rounds 0
 
 - Simulation-only: no wallets, custody, real payment transfer, settlement, P2P off-platform netting, or real MAD→EUR cross-border movement.
 - Only enable real payments after a separately approved licensed-partner/legal workstream.
-- The native `codex exec review --uncommitted` generates advice, **not a pass/fail compliance gate**. A zero exit code means the reviewer ran, not that the change was approved.
+- Codex reviews use a read-only session and follow the repository review policy. A human still assesses findings and signs off.
 - The workflow has no autonomous merge; human must assess findings and CI/security output before any commit or release.
 - Scripted shell permission settings are useful guardrails but not a secure sandbox against untrusted repository code. Use a container/VM and minimal credentials for sensitive production work.
 
@@ -93,7 +100,7 @@ bash scripts/pair.sh FX-001 --skip-implement --fix-rounds 0
 
 - `.ai/prompts/implement.md`: implementation instruction for the assigned agent.
 - `.ai/prompts/fix.md`: how the assigned implementer consumes review findings.
-- `.ai/prompts/review.md`: read-only Claude review instruction for FX-003.
-- `.ai/prompts/review_policy.md`: review focus (also described in AGENTS.md; Codex's built-in review target cannot simultaneously accept an additional freeform prompt).
+- `.ai/prompts/review.md`: read-only review instructions for both agents.
+- `.ai/prompts/review_policy.md`: review focus, also described in AGENTS.md.
 - `docs/BACKLOG.md`: tickets FX-001 through FX-020.
 - `tests/test_pair_cli.py`: isolated offline regression tests with stub CLIs.
