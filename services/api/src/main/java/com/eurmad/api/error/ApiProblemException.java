@@ -17,9 +17,24 @@ public final class ApiProblemException extends RuntimeException {
         this.status = status;
     }
 
+    /** The request is malformed (e.g. carries a body where the contract accepts none). */
+    public static ApiProblemException badRequest() {
+        return new ApiProblemException(HttpStatus.BAD_REQUEST);
+    }
+
     /** Resource is absent or not owned by the caller; the two cases are indistinguishable. */
     public static ApiProblemException notFound() {
         return new ApiProblemException(HttpStatus.NOT_FOUND);
+    }
+
+    /** The request conflicts with the current state of the resource (e.g. a disallowed transition). */
+    public static ApiProblemException conflict() {
+        return new ApiProblemException(HttpStatus.CONFLICT);
+    }
+
+    /** The caller is not eligible for the operation or a business rule rejected it. */
+    public static ApiProblemException unprocessable() {
+        return new ApiProblemException(HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     public HttpStatus status() {

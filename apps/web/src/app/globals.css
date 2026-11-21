@@ -26,3 +26,24 @@ body {
   margin-inline: auto;
   padding: 2rem 1rem;
 }
+
+.kyc-status {
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 4px solid #8a8a8a;
+  background: #f4f4f4;
+}
+
+.kyc-status--pending {
+  border-inline-start-color: #b58100;
+  background: #fff8e1;
+}
+
+.kyc-status--success {
+  border-inline-start-color: #1f7a3a;
+  background: #e8f5ec;
+}
+
+.kyc-status--danger {
+  border-inline-start-color: #b3261e;
+  background: #fdecea;
+}
