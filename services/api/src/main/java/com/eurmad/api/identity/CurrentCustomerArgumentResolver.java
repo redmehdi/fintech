@@ -12,7 +12,10 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
-/** Resolves {@link CurrentCustomer} parameters from the verified JWT issuer and subject. */
+/**
+ * Resolves {@link CurrentCustomer} and {@link EligibleCustomer} parameters from the verified JWT
+ * issuer and subject.
+ */
 class CurrentCustomerArgumentResolver implements HandlerMethodArgumentResolver {
 
     private final CustomerRepository customers;
@@ -23,7 +26,8 @@ class CurrentCustomerArgumentResolver implements HandlerMethodArgumentResolver {
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
-        return parameter.hasParameterAnnotation(CurrentCustomer.class)
+        return (parameter.hasParameterAnnotation(CurrentCustomer.class)
+                        || parameter.hasParameterAnnotation(EligibleCustomer.class))
                 && AuthenticatedCustomer.class.equals(parameter.getParameterType());
     }
 
@@ -44,8 +48,12 @@ class CurrentCustomerArgumentResolver implements HandlerMethodArgumentResolver {
         if (issuer == null || issuer.isBlank() || subject == null || subject.isBlank()) {
             throw new AuthenticationCredentialsNotFoundException("Token issuer and subject required");
         }
-        return customers.findByOidcIdentity(issuer, subject)
+        AuthenticatedCustomer customer = customers.findByOidcIdentity(issuer, subject)
                 .map(AuthenticatedCustomer::new)
                 .orElseThrow(ApiProblemException::notFound);
+        if (parameter.hasParameterAnnotation(EligibleCustomer.class)) {
+            CustomerEligibility.requireEligible(customer.profile());
+        }
+        return customer;
     }
 }

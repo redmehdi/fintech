@@ -26,6 +26,12 @@ server:
 fintech:
   mode: SIMULATION
   live-enabled: false
+  # Deterministic KYC sandbox (FX-005): every synthetic verification resolves to this outcome
+  # (APPROVED | REJECTED). PENDING is rejected at startup until a signed sandbox callback can
+  # resolve pending cases. No real KYC provider exists in the MVP.
+  kyc:
+    sandbox:
+      outcome: ${KYC_SANDBOX_OUTCOME:APPROVED}
   # OIDC resource server (FX-004). Tokens are validated locally against the issuer's JWKS:
   # signature (RS256/ES256 only), iss, aud, exp/nbf and sub. Defaults point at a local
   # development IdP only; plain http is accepted for loopback hosts only.

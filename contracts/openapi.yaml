@@ -82,6 +82,9 @@ paths:
       - KYC
       operationId: getKycStatus
       summary: Read current KYC status
+      description: Returns the caller's own KYC status. Only `APPROVED` customers with an `ACTIVE`
+        account may submit eligible operations (quotes, transfers, offers, match acceptance); all
+        others receive `422`.
       responses:
         '200':
           description: OK
@@ -139,9 +142,20 @@ paths:
       - KYC
       operationId: createKycSession
       summary: Create a synthetic sandbox verification session
+      description: Starts a deterministic sandbox verification for the caller. No request body is
+        accepted and no identity documents or document data are collected or stored. Allowed only
+        from `NOT_STARTED` or `EXPIRED`; any other KYC status returns `409`, and a non-`ACTIVE`
+        account returns `422`. The sandbox may decide immediately (`APPROVED`/`REJECTED`) or leave
+        the session `PENDING`. A request carrying any body returns `400` without changing state.
       responses:
         '201':
           description: Created
+          headers:
+            X-Correlation-Id:
+              description: Server-generated request identifier, also recorded in the KYC audit events.
+              schema:
+                type: string
+                format: uuid
           content:
             application/json:
               schema:
