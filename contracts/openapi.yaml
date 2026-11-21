@@ -477,6 +477,26 @@ paths:
       - Quotes
       operationId: createQuote
       summary: Issue an expiring indicative simulated FX quote
+      description: Issues an immutable, simulation-only quote owned by the caller. Requires an
+        `ACTIVE` account with KYC `APPROVED` (`422` otherwise). `rate` is target currency per one
+        source currency from the deterministic simulator (illustrative, not a market rate);
+        `targetAmountMinor` is `sourceAmountMinor × rate` rounded HALF_EVEN to the target minor
+        unit. The fee is charged in the source currency as `feeSourceMinor = fixed +
+        HALF_EVEN(sourceAmountMinor × basisPoints / 10000)`; only the variable part is rounded, to
+        the source minor unit, and the fixed part is added unrounded (a EUR 1.00 quote at 1.99 +
+        0.50 % has fee 199, not 200). The fixed and variable components are recorded with the
+        immutable quote. `totalDebitMinor = sourceAmountMinor + feeSourceMinor`. The
+        quote expires server-side 10 minutes after issue; an expired or consumed quote cannot be
+        used. Malformed fields, values outside the enums, equal source and target currencies, a
+        zero amount, any field that is not a JSON string, a non-JSON body, or a missing or
+        malformed `Idempotency-Key` return `400`; leading zeros in `sourceAmountMinor` are not
+        significant. A source amount outside the simulated per-currency
+        limits (EUR 1.00–10,000.00; MAD 10.00–100,000.00) returns `422`. Replaying the same key
+        with an identical request returns the originally issued quote (its `status` reflects
+        expiry); the same key with a different request returns `409`. If a concurrent request
+        from the same customer holds the creation lock for longer than a short timeout, nothing is
+        written and `503` with `Retry-After` is returned; retrying with the same `Idempotency-Key`
+        is safe. No live rate, FX execution or payment is ever performed.
       requestBody:
         required: true
         content:
@@ -486,6 +506,13 @@ paths:
       responses:
         '201':
           description: Created
+          headers:
+            X-Correlation-Id:
+              description: Server-generated request identifier, recorded in the audit event when this
+                request issued the quote.
+              schema:
+                type: string
+                format: uuid
           content:
             application/json:
               schema:
@@ -534,15 +561,30 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: Temporarily unable to process because of concurrent requests from the same
+            customer; nothing was written. Retry with the same `Idempotency-Key`.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
       parameters:
       - name: Idempotency-Key
         in: header
         required: true
-        description: Unique key per actor+operation; replay with different body returns 409
+        description: Unique key per actor+operation; replay with different body returns 409.
+          Printable US-ASCII without spaces.
         schema:
           type: string
           minLength: 8
           maxLength: 128
+          pattern: ^[\x21-\x7E]{8,128}$
   /v1/transfers:
     get:
       tags:
@@ -1808,9 +1850,11 @@ components:
           pattern: ^[0-9]+(\.[0-9]{1,12})?$
         rateSource:
           type: string
+          description: Origin of the rate. In SIMULATION mode always `SIMULATED_ILLUSTRATIVE`.
         expiresAt:
           type: string
           format: date-time
+          description: Server-side expiry instant (UTC). The quote is `EXPIRED` from this instant on.
         mode:
           type: string
           enum:
