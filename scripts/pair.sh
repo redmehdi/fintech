@@ -2,10 +2,11 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 usage(){ cat <<'EOF'
-Usage: scripts/pair.sh FX-### [--dry-run] [--skip-implement] [--fix-rounds 0|1|2]
-  Default: follow the implementer/reviewer assignment in docs/BACKLOG.md.
+Usage: scripts/pair.sh FX-### [--dry-run] [--skip-implement] [--fix-rounds 0|1|2] [--new-session]
+  Default: Claude implements and repairs, Codex reviews in one session.
   FX-003: Codex implement -> verify -> Claude review -> Codex resume/fix -> verify -> Claude final review.
-  --skip-implement: review existing uncommitted changes (does not require clean tree)
+  --skip-implement: review existing changes and resume the saved Codex review session for this ticket and branch
+  --new-session: start a fresh Codex review session with --skip-implement
   --fix-rounds 0: review-only after implementation, no repair or final review
   No commit, push, merge, or deploy is performed. Any review findings need human signoff.
 EOF
@@ -17,17 +18,21 @@ case "$ticket" in
  FX-003) implementer=codex; reviewer=claude; implementer_label=Codex; reviewer_label=Claude ;;
  *) implementer=claude; reviewer=codex; implementer_label=Claude; reviewer_label=Codex ;;
 esac
-dry_run=0; skip_implement=0; fix_rounds=1
+dry_run=0; skip_implement=0; fix_rounds=1; new_session=0
 while (($#)); do
  case "$1" in
  --dry-run) dry_run=1 ;;
  --skip-implement) skip_implement=1 ;;
+ --new-session) new_session=1 ;;
  --fix-rounds) shift; [[ $# -gt 0 ]] || die 'Missing value for --fix-rounds'; fix_rounds="$1" ;;
  -h|--help) usage; exit 0 ;;
  *) die "Unknown option: $1" ;;
  esac; shift
 done
 [[ "$fix_rounds" =~ ^[012]$ ]] || die '--fix-rounds must be 0, 1 or 2'
+if [[ "$new_session" == 1 && ( "$skip_implement" != 1 || "$reviewer" != codex ) ]]; then
+ die '--new-session requires --skip-implement and a Codex review'
+fi
 assert_git
 assert_feature_branch
 original_head="$(git rev-parse HEAD)"
@@ -39,9 +44,10 @@ assert_revision_unchanged(){
 if [[ "$dry_run" == 1 ]]; then
  cat <<EOF
 DRY RUN for $ticket
-  Implementer: $implementer_label
 EOF
- if [[ "$implementer" == codex ]]; then
+ if [[ "$skip_implement" == 1 ]]; then
+  printf '  Review existing uncommitted changes\n'
+ elif [[ "$implementer" == codex ]]; then
   cat <<'EOF'
   Codex: codex exec --json --sandbox workspace-write <implement prompt>
 EOF
@@ -57,13 +63,17 @@ EOF
  if [[ "$reviewer" == claude ]]; then
   cat <<'EOF'
   Claude: claude -p <review prompt> --permission-mode plan --permission-prompts none
-  Repair: codex exec resume <session-id> <fix prompt>
+  Repair: codex exec --sandbox workspace-write resume <session-id> <fix prompt>
 EOF
  else
   cat <<'EOF'
-  Codex: codex exec --sandbox read-only review --uncommitted -o <review.md>
+  First review: codex exec --sandbox read-only --json -o <review.md> <review prompt>
+  Follow-up: codex exec --sandbox read-only resume <session-id> --json -o <review.md> <review prompt>
   Repair: Claude reads review and fixes with scoped edit tools
 EOF
+  if [[ "$skip_implement" == 1 && "$new_session" == 0 ]]; then
+   printf '  Reuse the saved Codex review session for this ticket and branch when available.\n'
+  fi
  fi
  cat <<EOF
   Fix cycles: $fix_rounds ($implementer_label repairs after $reviewer_label review; verification and review repeat)
@@ -99,13 +109,48 @@ run_claude(){
   --allowedTools "$CLAUDE_ALLOWED_TOOLS" --disallowedTools "$CLAUDE_DENIED_TOOLS" > "$log_file" 2>&1 || { note "Claude failed; inspect $log_file"; return 1; }
 }
 CODEX_SESSION_ID=""
+valid_codex_session_id(){
+ [[ "$1" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]
+}
+if [[ "$reviewer" == codex ]]; then
+ mkdir -p .ai-runs/sessions
+ branch_key="$(printf '%s' "$original_branch" | git hash-object --stdin)"
+ codex_review_session_file=".ai-runs/sessions/$ticket-$branch_key.txt"
+ if [[ "$skip_implement" == 0 || "$new_session" == 1 ]]; then
+  # A new implementation or explicit reset supersedes any previous review.
+  : > "$codex_review_session_file"
+ elif [[ -s "$codex_review_session_file" ]]; then
+  CODEX_SESSION_ID="$(cat "$codex_review_session_file")"
+  valid_codex_session_id "$CODEX_SESSION_ID" || die 'Invalid saved Codex session ID. Use --new-session to start a fresh review.'
+ fi
+fi
+record_codex_session(){
+ local trace_file="$1" reported_id
+ reported_id="$(python3 - "$trace_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as trace:
+    for line in trace:
+        if line.strip():
+            event = json.loads(line)
+            if event.get("type") == "thread.started":
+                print(event.get("thread_id", ""))
+                break
+PY
+ )" || die "Could not read Codex session ID from $trace_file"
+ valid_codex_session_id "$reported_id" || die "Codex did not report a resumable session ID. See $trace_file"
+ if [[ -n "$CODEX_SESSION_ID" && "$reported_id" != "$CODEX_SESSION_ID" ]]; then
+  die "Codex returned session $reported_id instead of $CODEX_SESSION_ID. See $trace_file"
+ fi
+ CODEX_SESSION_ID="$reported_id"
+ printf '%s\n' "$CODEX_SESSION_ID" > "$run_dir/codex-session-id.txt"
+}
 run_codex_implementation(){
  local prompt_file="$1" trace_file="$2" log_file="$3"
  note 'Codex: implementation'
  codex exec --json --sandbox workspace-write "$(cat "$prompt_file")" > "$trace_file" 2> "$log_file" || { note "Codex failed; inspect $log_file and $trace_file"; return 1; }
- CODEX_SESSION_ID="$(python3 -c 'import json,sys; print(next((event["thread_id"] for line in open(sys.argv[1], encoding="utf-8") if line.strip() for event in [json.loads(line)] if event.get("type") == "thread.started" and isinstance(event.get("thread_id"), str)), ""))' "$trace_file")"
- [[ -n "$CODEX_SESSION_ID" ]] || { note "Codex did not report a resumable session id; inspect $trace_file"; return 1; }
- printf '%s\n' "$CODEX_SESSION_ID" > "$run_dir/codex-session-id.txt"
+ record_codex_session "$trace_file"
 }
 run_codex_fix(){
  local prompt_file="$1" log_file="$2"
@@ -115,7 +160,7 @@ run_codex_fix(){
   return
  fi
  note "Codex: resuming implementation session $CODEX_SESSION_ID"
- codex exec resume "$CODEX_SESSION_ID" "$(cat "$prompt_file")" > "$log_file" 2>&1 || { note "Codex resume failed; inspect $log_file"; return 1; }
+ codex exec --sandbox workspace-write resume "$CODEX_SESSION_ID" "$(cat "$prompt_file")" > "$log_file" 2>&1 || { note "Codex resume failed; inspect $log_file"; return 1; }
 }
 run_tests(){
  local log="$1"; note 'Running local checks'
@@ -127,13 +172,31 @@ run_tests(){
  fi
 }
 review(){
- local output="$1" log="$2" prompt_file="$3"
+ local output="$1" log="$2" prompt_file="$3" trace_file
+ assert_revision_unchanged
+ render_prompt .ai/prompts/review.md "$ticket" > "$prompt_file"
  if [[ "$reviewer" == codex ]]; then
-  note 'Codex: independent read-only review'
-  codex exec --sandbox read-only review --uncommitted -o "$output" > "$log" 2>&1 || { note "Codex review failed; inspect $log"; return 1; }
+  trace_file="${log%.log}.jsonl"
+  local -a codex_review=(codex exec --sandbox read-only)
+  if [[ -n "$CODEX_SESSION_ID" ]]; then
+   note "Codex: resuming read-only review session $CODEX_SESSION_ID"
+   codex_review+=(resume "$CODEX_SESSION_ID")
+  else
+   note 'Codex: starting read-only review session'
+  fi
+  "${codex_review[@]}" --json -o "$output" - < "$prompt_file" > "$trace_file" 2> "$log" || {
+   note "Codex review failed. See $log and $trace_file"
+   if [[ -n "$CODEX_SESSION_ID" ]]; then note 'If the saved session is unavailable, use --skip-implement --new-session.'; fi
+   return 1
+  }
+  assert_revision_unchanged
+  record_codex_session "$trace_file"
+  if [[ ! -s "$codex_review_session_file" ]]; then
+   cp "$run_dir/codex-session-id.txt" "$codex_review_session_file.tmp"
+   mv "$codex_review_session_file.tmp" "$codex_review_session_file"
+  fi
  else
   note 'Claude: independent read-only review'
-  render_prompt .ai/prompts/review.md "$ticket" > "$prompt_file"
   claude -p "$(cat "$prompt_file")" --permission-mode plan --permission-prompts none \
    --allowedTools "Read,Glob,Grep,Bash(git status *),Bash(git diff *),Bash(git ls-files *)" \
    > "$output" 2> "$log" || { note "Claude review failed; inspect $log"; return 1; }
@@ -153,6 +216,9 @@ assert_revision_unchanged
 # Preserve test status without stopping code review/repair on failed checks.
 if run_tests "$run_dir/tests-initial.log"; then note 'Initial tests passed'; else note 'Initial tests failed; review and repair required'; fi
 review "$run_dir/review-0.md" "$run_dir/reviewer-0.log" "$run_dir/review-prompt-0.md"
+if [[ "$reviewer" == codex ]]; then
+ note "To continue with Codex interactively after the run, use: codex resume --sandbox workspace-write $CODEX_SESSION_ID"
+fi
 for ((i=1;i<=fix_rounds;i++)); do
  render_prompt .ai/prompts/fix.md "$ticket" "$run_dir/review-$((i-1)).md" "$reviewer_label" > "$run_dir/fix-prompt-$i.md"
  if [[ "$implementer" == codex ]]; then
@@ -173,5 +239,5 @@ else
  exit 1
 fi
 assert_revision_unchanged
-note "Last independent review: $run_dir/review-$fix_rounds.md"
+note "Last review: $run_dir/review-$fix_rounds.md"
 note 'Review findings manually. Nothing has been committed, pushed or merged.'

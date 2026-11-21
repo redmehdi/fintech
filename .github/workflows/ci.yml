@@ -13,6 +13,8 @@ jobs:
     name: Contract, build, tests and security
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      FINTECH_MAVEN: mvn
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,7 +51,9 @@ jobs:
           cache: maven
 
       - run: make install
-      - run: make verify
+      - run: |
+          "$FINTECH_MAVEN" --version
+          make verify
       - name: Verify the CI gates reject breaking changes and type errors
         run: bash scripts/test-ci-gates.sh
 

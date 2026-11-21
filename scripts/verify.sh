@@ -32,8 +32,8 @@ elif [[ "$require_scaffold" == 1 ]]; then
  die 'Missing apps/web/package.json (FX-001 scaffold incomplete)'
 else note 'Skipping frontend checks: scaffold not yet created'; fi
 if [[ -e services/api/pom.xml ]]; then
- if [[ -x services/api/mvnw ]]; then
-   (cd services/api && ./mvnw -B -ntp verify)
+ if [[ -n "${FINTECH_MAVEN:-}" || -x services/api/mvnw ]]; then
+   (cd services/api && "${FINTECH_MAVEN:-./mvnw}" -B -ntp verify)
  else
    command -v mvn >/dev/null || die 'Maven missing; add services/api/mvnw or install mvn'
    mvn -B -ntp -f services/api/pom.xml verify
