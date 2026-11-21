@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -120,6 +121,28 @@ public class QuoteService {
             throw ApiProblemException.conflict();
         }
         return quote;
+    }
+
+    /**
+     * Marks a quote previously returned by {@link #requireFreshForUpdate} (in the same transaction)
+     * as consumed, at most once. Must run inside the caller's transaction.
+     *
+     * @throws ApiProblemException {@code 409} if it is no longer {@code ISSUED}, {@code 422} if the
+     *     database clock has reached its expiry since the freshness check
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void consume(UUID customerId, UUID quoteId) {
+        requireSimulator();
+        int changed;
+        try {
+            changed = repository.markConsumed(customerId, quoteId);
+        } catch (DataIntegrityViolationException e) {
+            // Raised by the fx_quotes_immutable trigger: the quote expired by the database clock.
+            throw ApiProblemException.unprocessable();
+        }
+        if (changed != 1) {
+            throw ApiProblemException.conflict();
+        }
     }
 
     private void requireSimulator() {
